@@ -1,3 +1,5 @@
+import type { AnalysisStatus, CallAnalysisScorecard } from '../analysis/types.js';
+
 export interface ConversationDocument {
   callId: string;
   roomName: string;
@@ -14,6 +16,9 @@ export interface ConversationDocument {
   };
   turns: ConversationTurn[];
   usage?: unknown;
+  analysis?: CallAnalysisScorecard;
+  analysisStatus?: AnalysisStatus;
+  analysisError?: string;
   createdAt: Date;
   updatedAt: Date;
 }

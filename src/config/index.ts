@@ -58,6 +58,7 @@ function asTtsProvider(value: string): TtsProvider {
 
 export const config: AppConfig = {
   ...(process.env.MONGODB_URI ? { mongodbUri: process.env.MONGODB_URI } : {}),
+  callAnalysisEnabled: envBool('CALL_ANALYSIS_ENABLED', true),
   stt: {
     provider: asSttProvider(env('STT_PROVIDER', 'deepgram')),
     model: env('STT_MODEL', 'nova-2-general'),

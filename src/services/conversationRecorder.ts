@@ -10,6 +10,7 @@ import {
 import type { ConversationTurn } from '../db/types.js';
 import type { CallIdentity } from '../utils/callIdentity.js';
 import { createLogger } from '../utils/logger.js';
+import { scheduleCallAnalysis } from './callAnalysisService.js';
 
 const logger = createLogger('conversationRecorder');
 
@@ -124,6 +125,10 @@ export class ConversationRecorder {
       { callId: this.identity.callId, status, closeReason },
       'Conversation saved to MongoDB',
     );
+
+    if (status === 'completed') {
+      scheduleCallAnalysis(this.identity.callId);
+    }
   }
 
   async fail(reason: string): Promise<void> {

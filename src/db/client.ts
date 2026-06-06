@@ -50,4 +50,5 @@ export async function ensureIndexes(): Promise<void> {
   await database.collection('conversations').createIndex({ jobId: 1 });
   await database.collection('conversations').createIndex({ startedAt: -1 });
   await database.collection('conversations').createIndex({ status: 1 });
+  await database.collection('conversations').createIndex({ analysisStatus: 1 });
 }

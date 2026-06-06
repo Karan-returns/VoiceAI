@@ -8,6 +8,7 @@
     "clean": "rm -rf dist",
     "typecheck": "tsc --noEmit",
     "dev": "tsx src/agent.ts dev",
+    "analyze:call": "tsx src/scripts/analyzeCall.ts",
     "start": "node dist/agent.js start",
     "download-files": "npx livekit-agents download-files"
   },

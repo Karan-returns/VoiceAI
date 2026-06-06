@@ -30,6 +30,7 @@ export interface PipelineConfig {
 
 export interface AppConfig {
   mongodbUri?: string;
+  callAnalysisEnabled: boolean;
   stt: SttConfig;
   llm: LlmConfig;
   tts: TtsConfig;

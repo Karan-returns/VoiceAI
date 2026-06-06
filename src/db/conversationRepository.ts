@@ -1,5 +1,6 @@
 import type { Collection } from 'mongodb';
 
+import type { CallAnalysisScorecard } from '../analysis/types.js';
 import { getDb } from './client.js';
 import {
   CONVERSATIONS_COLLECTION,
@@ -50,4 +51,60 @@ export async function markConversationFailed(callId: string, closeReason: string
     status: 'failed',
     closeReason,
   });
+}
+
+export async function getConversationByCallId(
+  callId: string,
+): Promise<ConversationDocument | null> {
+  return conversations().findOne({ callId });
+}
+
+export async function saveCallAnalysis(
+  callId: string,
+  analysis: CallAnalysisScorecard,
+): Promise<void> {
+  await conversations().updateOne(
+    { callId },
+    {
+      $set: {
+        analysis,
+        analysisStatus: 'completed',
+        updatedAt: new Date(),
+      },
+      $unset: { analysisError: '' },
+    },
+  );
+}
+
+export async function setAnalysisStatus(
+  callId: string,
+  status: NonNullable<ConversationDocument['analysisStatus']>,
+  error?: string,
+): Promise<void> {
+  const update: Record<string, unknown> = {
+    analysisStatus: status,
+    updatedAt: new Date(),
+  };
+
+  if (error) {
+    update.analysisError = error;
+  }
+
+  await conversations().updateOne({ callId }, { $set: update });
+}
+
+export async function listConversationsPendingAnalysis(limit = 20): Promise<ConversationDocument[]> {
+  return conversations()
+    .find({
+      status: 'completed',
+      'turns.0': { $exists: true },
+      $or: [
+        { analysisStatus: { $exists: false } },
+        { analysisStatus: 'pending' },
+        { analysisStatus: 'failed' },
+      ],
+    })
+    .sort({ endedAt: -1 })
+    .limit(limit)
+    .toArray();
 }
