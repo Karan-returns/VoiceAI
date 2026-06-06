@@ -1,5 +1,6 @@
 import { MongoClient, type Db } from 'mongodb';
 
+import { BILLING_ACCOUNTS_COLLECTION } from './billingTypes.js';
 import { createLogger } from '../utils/logger.js';
 
 const logger = createLogger('db');
@@ -50,4 +51,8 @@ export async function ensureIndexes(): Promise<void> {
   await database.collection('conversations').createIndex({ jobId: 1 });
   await database.collection('conversations').createIndex({ startedAt: -1 });
   await database.collection('conversations').createIndex({ status: 1 });
+  await database.collection(BILLING_ACCOUNTS_COLLECTION).createIndex(
+    { accountLastFour: 1 },
+    { unique: true },
+  );
 }

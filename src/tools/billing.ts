@@ -1,6 +1,57 @@
 import { llm } from '@livekit/agents';
 import { z } from 'zod';
 
+import {
+  findBillingAccountByLastFour,
+  notFoundLookup,
+  processBillingLookup,
+  processPaymentHistory,
+} from '../db/billingRepository.js';
+import { createLogger } from '../utils/logger.js';
+
+const logger = createLogger('billing-tools');
+
+async function lookupAccount(lastFour: string, billMonth?: string) {
+  try {
+    const account = await findBillingAccountByLastFour(lastFour);
+
+    if (!account) {
+      logger.warn({ lastFour }, 'No billing account found for last four digits');
+      return notFoundLookup(lastFour, billMonth);
+    }
+
+    return processBillingLookup(account, billMonth);
+  } catch (err) {
+    logger.error({ err, lastFour }, 'Billing lookup failed');
+    throw err;
+  }
+}
+
+async function lookupPaymentHistory(lastFour: string, paymentDate: string) {
+  try {
+    const account = await findBillingAccountByLastFour(lastFour);
+
+    if (!account) {
+      logger.warn({ lastFour, paymentDate }, 'No billing account for payment history lookup');
+      return {
+        found: false,
+        accountLastFour: lastFour,
+        paymentInitiated: null,
+        paymentPosted: null,
+        paymentAmount: null,
+        paymentStatus: null,
+        onTime: false,
+        lateFeeEligibleForWaiver: false,
+      };
+    }
+
+    return processPaymentHistory(account, paymentDate);
+  } catch (err) {
+    logger.error({ err, lastFour, paymentDate }, 'Payment history lookup failed');
+    throw err;
+  }
+}
+
 export const lookupBillingAccount = llm.tool({
   description:
     'Look up a NovaTel customer billing account by the last four digits of their account or phone number.',
@@ -9,19 +60,8 @@ export const lookupBillingAccount = llm.tool({
     billMonth: z.string().optional().describe('Bill month in YYYY-MM if known'),
   }),
   execute: async ({ lastFour, billMonth }) => {
-    return JSON.stringify({
-      accountLastFour: lastFour,
-      billMonth: billMonth ?? '2026-05',
-      plan: 'NovaTel Unlimited 50',
-      monthlyCharge: 79.99,
-      recentCharges: [
-        { description: 'Monthly plan fee', amount: 79.99 },
-        { description: 'Device installment', amount: 15.0 },
-      ],
-      duplicateChargeFlag: lastFour.endsWith('7'),
-      lateFeeOnAccount: 10.0,
-      contractEndDate: '2026-11-01',
-    });
+    const result = await lookupAccount(lastFour, billMonth);
+    return JSON.stringify(result);
   },
 });
 
@@ -32,13 +72,8 @@ export const checkPaymentHistory = llm.tool({
     paymentDate: z.string().describe('Date customer says they paid, YYYY-MM-DD'),
   }),
   execute: async ({ lastFour, paymentDate }) => {
-    return JSON.stringify({
-      accountLastFour: lastFour,
-      paymentInitiated: paymentDate,
-      paymentPosted: paymentDate,
-      onTime: true,
-      lateFeeEligibleForWaiver: true,
-    });
+    const result = await lookupPaymentHistory(lastFour, paymentDate);
+    return JSON.stringify(result);
   },
 });
 

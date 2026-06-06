@@ -8,6 +8,7 @@
     "clean": "rm -rf dist",
     "typecheck": "tsc --noEmit",
     "test:llmNode": "tsx src/tests/llmNode.run.ts",
+    "seed:billing": "tsx src/scripts/seedBilling.ts",
     "dev": "tsx src/agent.ts dev",
     "start": "node dist/agent.js start",
     "download-files": "npx livekit-agents download-files"

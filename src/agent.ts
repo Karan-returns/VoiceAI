@@ -12,6 +12,7 @@ import { fileURLToPath } from 'node:url';
 
 import { NovaTelAgent } from './agents/NovaTelAgent.js';
 import { config } from './config/index.js';
+import { seedBillingAccounts } from './db/billingRepository.js';
 import { connectMongo, ensureIndexes } from './db/client.js';
 import { NOVATEL_GREETING_INSTRUCTION } from './prompts/novaTelSupport.v1.js';
 import { createProviders } from './providers/index.js';
@@ -32,8 +33,9 @@ export default defineAgent({
     if (config.mongodbUri) {
       await connectMongo(config.mongodbUri);
       await ensureIndexes();
+      await seedBillingAccounts();
     } else {
-      logger.warn('MONGODB_URI not set — conversations will not be persisted');
+      logger.warn('MONGODB_URI not set — conversations and billing lookups will not work');
     }
   },
 
