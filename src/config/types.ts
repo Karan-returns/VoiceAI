@@ -29,6 +29,7 @@ export interface PipelineConfig {
 }
 
 export interface AppConfig {
+  mongodbUri?: string;
   stt: SttConfig;
   llm: LlmConfig;
   tts: TtsConfig;

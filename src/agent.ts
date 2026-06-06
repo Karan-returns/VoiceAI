@@ -12,28 +12,34 @@ import { fileURLToPath } from 'node:url';
 
 import { NovaTelAgent } from './agents/NovaTelAgent.js';
 import { config } from './config/index.js';
+import { connectMongo, ensureIndexes } from './db/client.js';
 import { NOVATEL_GREETING_INSTRUCTION } from './prompts/novaTelSupport.v1.js';
 import { createProviders } from './providers/index.js';
+import {
+  attachConversationRecorder,
+  type ConversationRecorder,
+} from './services/conversationRecorder.js';
+import { resolveCallIdentity } from './utils/callIdentity.js';
 import { createLogger } from './utils/logger.js';
 import { attachSessionMetrics, logUsageSummary } from './utils/metrics.js';
 
 const logger = createLogger('agent');
 
-/**
- * Worker entrypoint.
- *
- * Lifecycle:
- *   1. prewarm()  -> load shared models once per worker process
- *   2. entry()    -> run one call/session when LiveKit dispatches a room job
- */
 export default defineAgent({
-  // Called once when the worker process starts (like loading a heavy model at startup).
   prewarm: async (proc: JobProcess) => {
     proc.userData.vad = await silero.VAD.load();
+
+    if (config.mongodbUri) {
+      await connectMongo(config.mongodbUri);
+      await ensureIndexes();
+    } else {
+      logger.warn('MONGODB_URI not set — conversations will not be persisted');
+    }
   },
 
-  // Called once per incoming call/room job.
   entry: async (ctx: JobContext) => {
+    let recorder: ConversationRecorder | undefined;
+
     try {
       const providers = createProviders(config);
       const agent = new NovaTelAgent(config.pipeline);
@@ -72,8 +78,19 @@ export default defineAgent({
 
       attachSessionMetrics(session);
 
+      const callIdentity = resolveCallIdentity(ctx);
+
+      if (config.mongodbUri) {
+        recorder = attachConversationRecorder(session, config, callIdentity);
+        await recorder.start();
+      }
+
       ctx.addShutdownCallback(async () => {
         logUsageSummary(session.usage);
+
+        if (recorder) {
+          await recorder.finalize('completed', 'job_shutdown', session.usage);
+        }
       });
 
       await session.start({
@@ -86,10 +103,13 @@ export default defineAgent({
 
       logger.info(
         {
-          room: ctx.room.name,
+          callId: callIdentity.callId,
+          room: callIdentity.roomName,
+          jobId: callIdentity.jobId,
           stt: `${config.stt.provider}/${config.stt.model}`,
           llm: `${config.llm.provider}/${config.llm.model}`,
           tts: `${config.tts.provider}/${config.tts.model}`,
+          mongo: Boolean(config.mongodbUri),
         },
         'NovaTel agent session started',
       );
@@ -99,6 +119,11 @@ export default defineAgent({
       });
     } catch (err) {
       logger.error({ err, room: ctx.room.name }, 'Agent session failed');
+
+      if (recorder) {
+        await recorder.fail(err instanceof Error ? err.message : 'unknown_error');
+      }
+
       throw err;
     }
   },
