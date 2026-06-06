@@ -8,7 +8,9 @@ import { runLlmNode } from '../pipeline/llmNode.js';
 import { runTranscriptionNode } from '../pipeline/sttNode.js';
 import { runTtsNode } from '../pipeline/ttsNode.js';
 import { NOVATEL_SUPPORT_PROMPT_V1 } from '../prompts/novaTelSupport.v1.js';
+import type { MidCallCorrectionMonitor } from '../services/midCallCorrection/monitor.js';
 import { billingTools } from '../tools/billing.js';
+import { pruneOrphanToolItems } from '../utils/pruneOrphanToolItems.js';
 
 /**
  * NovaTel billing support agent.
@@ -19,11 +21,25 @@ import { billingTools } from '../tools/billing.js';
  *   audio -> sttNode() -> transcriptionNode() -> llmNode() -> ttsNode() -> audio
  */
 export class NovaTelAgent extends voiceNs.Agent {
+  private correctionMonitor: MidCallCorrectionMonitor | undefined;
+
   constructor() {
     super({
       instructions: NOVATEL_SUPPORT_PROMPT_V1,
       tools: billingTools,
     });
+  }
+
+  setCorrectionMonitor(monitor: MidCallCorrectionMonitor): void {
+    this.correctionMonitor = monitor;
+  }
+
+  override async onUserTurnCompleted(
+    chatCtx: llm.ChatContext,
+    newMessage: llm.ChatMessage,
+  ): Promise<void> {
+    pruneOrphanToolItems(chatCtx);
+    this.correctionMonitor?.applyToTurn(chatCtx, newMessage);
   }
 
   override async transcriptionNode(

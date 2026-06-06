@@ -1,3 +1,18 @@
+export type MidCallCorrectionSignal =
+  | 'escalation_language'
+  | 'sentiment_drop'
+  | 'unanswered_objection'
+  | 'dead_air';
+
+export interface MidCallCorrectionRecord {
+  signal: MidCallCorrectionSignal;
+  blockId: MidCallCorrectionSignal;
+  evidence?: string;
+  injectedAt: Date;
+  latencyMs: number;
+  turnIndex: number;
+}
+
 export interface ConversationDocument {
   callId: string;
   roomName: string;
@@ -13,6 +28,7 @@ export interface ConversationDocument {
     tts: string;
   };
   turns: ConversationTurn[];
+  corrections?: MidCallCorrectionRecord[];
   usage?: unknown;
   createdAt: Date;
   updatedAt: Date;

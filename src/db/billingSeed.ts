@@ -1,6 +1,6 @@
 import type { BillingAccountDocument } from './billingTypes.js';
 
-/** Test accounts keyed by last four digits (1234 … 6789). */
+/** Test accounts keyed by last four digits (1234 … 7890). */
 export const TEST_BILLING_ACCOUNTS: BillingAccountDocument[] = [
   {
     accountLastFour: '1234',
@@ -121,6 +121,31 @@ export const TEST_BILLING_ACCOUNTS: BillingAccountDocument[] = [
         initiatedDate: '2026-04-30',
         postedDate: '2026-05-01',
         amount: 49.99,
+        status: 'posted',
+      },
+    ],
+  },
+  {
+    accountLastFour: '7890',
+    customerName: 'Morgan Ellis',
+    plan: 'NovaTel Unlimited 50',
+    monthlyCharge: 79.99,
+    billMonth: '2026-05',
+    recentCharges: [
+      { description: 'Monthly plan fee', amount: 79.99, date: '2026-05-01' },
+      { description: 'Equipment rental', amount: 12.0, date: '2026-05-01' },
+    ],
+    duplicateChargeFlag: false,
+    lateFeeOnAccount: 0,
+    contractEndDate: '2026-12-01',
+    underContract: true,
+    earlyTerminationFee: 120,
+    status: 'active',
+    payments: [
+      {
+        initiatedDate: '2026-04-29',
+        postedDate: '2026-04-30',
+        amount: 91.99,
         status: 'posted',
       },
     ],

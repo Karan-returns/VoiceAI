@@ -5,6 +5,7 @@ import {
   CONVERSATIONS_COLLECTION,
   type ConversationDocument,
   type ConversationTurn,
+  type MidCallCorrectionRecord,
 } from './types.js';
 
 function conversations(): Collection<ConversationDocument> {
@@ -24,6 +25,35 @@ export async function appendTurn(callId: string, turn: ConversationTurn): Promis
     { callId },
     {
       $push: { turns: turn },
+      $set: { updatedAt: new Date() },
+    },
+  );
+}
+
+export async function appendMidCallCorrection(
+  callId: string,
+  correction: {
+    signal: MidCallCorrectionRecord['signal'];
+    blockId: MidCallCorrectionRecord['blockId'];
+    evidence?: string;
+    injectedAt: number;
+    latencyMs: number;
+    turnIndex: number;
+  },
+): Promise<void> {
+  const record: MidCallCorrectionRecord = {
+    signal: correction.signal,
+    blockId: correction.blockId,
+    injectedAt: new Date(correction.injectedAt),
+    latencyMs: correction.latencyMs,
+    turnIndex: correction.turnIndex,
+    ...(correction.evidence ? { evidence: correction.evidence } : {}),
+  };
+
+  await conversations().updateOne(
+    { callId },
+    {
+      $push: { corrections: record },
       $set: { updatedAt: new Date() },
     },
   );

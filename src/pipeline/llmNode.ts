@@ -3,6 +3,7 @@ import { voice as voiceNs } from '@livekit/agents';
 import type { ReadableStream } from 'node:stream/web';
 
 import { createLogger } from '../utils/logger.js';
+import { pruneOrphanToolItems } from '../utils/pruneOrphanToolItems.js';
 
 const logger = createLogger('pipeline.llm');
 
@@ -23,6 +24,11 @@ export async function runLlmNode(
   toolCtx: llm.ToolContext,
   modelSettings: voice.ModelSettings,
 ): Promise<ReadableStream<llm.ChatChunk | string> | null> {
+  const pruned = pruneOrphanToolItems(chatCtx);
+  if (pruned > 0) {
+    logger.warn({ pruned }, 'Removed orphan tool items before LLM inference');
+  }
+
   const messages = chatCtx.items;
   const lastIndex = messages.length - 1;
 

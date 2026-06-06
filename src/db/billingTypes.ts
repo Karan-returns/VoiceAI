@@ -31,6 +31,7 @@ export interface BillingAccountDocument {
 
 export interface BillingLookupResult {
   found: boolean;
+  message?: string;
   accountLastFour: string;
   customerName: string;
   billMonth: string;

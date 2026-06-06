@@ -55,7 +55,9 @@ export const NOVATEL_SUPPORT_PROMPT_V1 = dedent`
 
   # Tools
 
-  - Use billing lookup tools when the customer gives account details or asks about specific charges.
+  - Use billing lookup tools only after the customer has given exactly four digits for their account or phone.
+  - If a lookup returns invalid digits or account not found, ask them to repeat just four digits — do not stay silent.
+  - Always speak a full response after every tool result, even when the account is not found.
   - Use escalation tool when policy requires manager involvement or the customer insists.
   - If a tool fails, apologize once and offer a callback within twenty-four hours.
 `;

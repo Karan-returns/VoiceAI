@@ -20,6 +20,7 @@ import {
   attachConversationRecorder,
   type ConversationRecorder,
 } from './services/conversationRecorder.js';
+import { attachMidCallCorrection } from './services/midCallCorrection/index.js';
 import { resolveCallIdentity } from './utils/callIdentity.js';
 import { createLogger } from './utils/logger.js';
 import { attachSessionMetrics, logUsageSummary } from './utils/metrics.js';
@@ -81,6 +82,7 @@ export default defineAgent({
       attachSessionMetrics(session);
 
       const callIdentity = resolveCallIdentity(ctx);
+      attachMidCallCorrection(session, agent, { callId: callIdentity.callId });
 
       if (config.mongodbUri) {
         recorder = attachConversationRecorder(session, config, callIdentity);

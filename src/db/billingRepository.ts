@@ -124,6 +124,8 @@ function daysBetween(start: string, end: string): number {
 export function notFoundLookup(lastFour: string, billMonth?: string): BillingLookupResult {
   return {
     found: false,
+    message:
+      'No NovaTel account matches those last four digits. Ask the customer to repeat only the last four digits of their account or phone number.',
     accountLastFour: lastFour,
     customerName: '',
     billMonth: billMonth ?? '',
