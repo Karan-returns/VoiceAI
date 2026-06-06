@@ -1,9 +1,10 @@
 import { createTimedString, isTimedString, stt, voice } from '@livekit/agents';
 import type { TimedString } from '@livekit/agents';
 import type { AudioFrame } from '@livekit/rtc-node';
-import { ReadableStream } from 'node:stream/web';
+import type { ReadableStream } from 'node:stream/web';
 
 import { createLogger } from '../utils/logger.js';
+import { mapStream } from '../utils/streamMap.js';
 
 const logger = createLogger('pipeline.stt');
 
@@ -23,18 +24,19 @@ export function logTranscriptCleanup(before: string, after: string): void {
   }
 }
 
-function mapTranscriptionChunk(chunk: string | TimedString): string | TimedString {
+function cleanTranscriptionChunk(chunk: string | TimedString): string | TimedString {
   if (typeof chunk === 'string') {
-    const after = stripFillerWords(chunk);
-    logTranscriptCleanup(chunk, after);
-    return after;
+    const cleanedText = stripFillerWords(chunk);
+    logTranscriptCleanup(chunk, cleanedText);
+    return cleanedText;
   }
 
   if (isTimedString(chunk)) {
-    const after = stripFillerWords(chunk.text);
-    logTranscriptCleanup(chunk.text, after);
+    const cleanedText = stripFillerWords(chunk.text);
+    logTranscriptCleanup(chunk.text, cleanedText);
+
     return createTimedString({
-      text: after,
+      text: cleanedText,
       ...(chunk.startTime !== undefined ? { startTime: chunk.startTime } : {}),
       ...(chunk.endTime !== undefined ? { endTime: chunk.endTime } : {}),
       ...(chunk.confidence !== undefined ? { confidence: chunk.confidence } : {}),
@@ -46,28 +48,10 @@ function mapTranscriptionChunk(chunk: string | TimedString): string | TimedStrin
   return chunk;
 }
 
-function mapReadableStream<T, U>(
-  input: ReadableStream<T>,
-  mapper: (chunk: T) => U,
-): ReadableStream<U> {
-  const reader = input.getReader();
-
-  return new ReadableStream<U>({
-    async pull(controller) {
-      const { value, done } = await reader.read();
-      if (done) {
-        controller.close();
-        return;
-      }
-
-      controller.enqueue(mapper(value));
-    },
-    cancel(reason) {
-      return reader.cancel(reason);
-    },
-  });
-}
-
+/**
+ * STT stage: audio frames -> speech events.
+ * Uses the framework default with no extra filtering.
+ */
 export async function runSttNode(
   agent: voice.Agent,
   audio: ReadableStream<AudioFrame>,
@@ -76,15 +60,20 @@ export async function runSttNode(
   return voice.Agent.default.sttNode(agent, audio, modelSettings);
 }
 
+/**
+ * Transcription cleanup stage: raw transcript stream -> cleaned transcript stream.
+ *
+ * Optional filler-word removal is applied chunk-by-chunk as text arrives.
+ */
 export async function runTranscriptionNode(
   agent: voice.Agent,
   text: ReadableStream<string | TimedString>,
   modelSettings: voice.ModelSettings,
   removeFillerWords: boolean,
 ): Promise<ReadableStream<string | TimedString> | null> {
-  const stream = removeFillerWords
-    ? mapReadableStream(text, mapTranscriptionChunk)
+  const processedText = removeFillerWords
+    ? mapStream(text, cleanTranscriptionChunk)
     : text;
 
-  return voice.Agent.default.transcriptionNode(agent, stream, modelSettings);
+  return voice.Agent.default.transcriptionNode(agent, processedText, modelSettings);
 }

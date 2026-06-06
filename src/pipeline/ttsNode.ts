@@ -1,12 +1,14 @@
 import type { voice } from '@livekit/agents';
 import { voice as voiceNs } from '@livekit/agents';
 import type { AudioFrame } from '@livekit/rtc-node';
-import { ReadableStream } from 'node:stream/web';
+import type { ReadableStream } from 'node:stream/web';
 
 import { createLogger } from '../utils/logger.js';
+import { mapStream } from '../utils/streamMap.js';
 
 const logger = createLogger('pipeline.tts');
 
+// term -> spoken form (like a Python dict[str, str] or C++ map<string, string>)
 const PRONUNCIATIONS: Record<string, string> = {
   API: 'A P I',
   LiveKit: 'Live Kit',
@@ -15,34 +17,25 @@ const PRONUNCIATIONS: Record<string, string> = {
 
 function applyPronunciations(text: string): string {
   let result = text;
-  for (const [term, spoken] of Object.entries(PRONUNCIATIONS)) {
-    result = result.replaceAll(term, spoken);
+
+  for (const term of Object.keys(PRONUNCIATIONS)) {
+    const spoken = PRONUNCIATIONS[term];
+    if (spoken !== undefined) {
+      result = result.replaceAll(term, spoken);
+    }
   }
+
   return result;
 }
 
-function mapReadableStream<T, U>(
-  input: ReadableStream<T>,
-  mapper: (chunk: T) => U,
-): ReadableStream<U> {
-  const reader = input.getReader();
-
-  return new ReadableStream<U>({
-    async pull(controller) {
-      const { value, done } = await reader.read();
-      if (done) {
-        controller.close();
-        return;
-      }
-
-      controller.enqueue(mapper(value));
-    },
-    cancel(reason) {
-      return reader.cancel(reason);
-    },
-  });
-}
-
+/**
+ * TTS stage of the voice pipeline.
+ *
+ * Input:  streamed text tokens from the LLM
+ * Output: streamed audio frames for playback
+ *
+ * This stage rewrites technical terms before sending text to the TTS engine.
+ */
 export async function runTtsNode(
   agent: voice.Agent,
   text: ReadableStream<string>,
@@ -50,6 +43,7 @@ export async function runTtsNode(
 ): Promise<ReadableStream<AudioFrame> | null> {
   logger.debug('Processing TTS input with pronunciation overrides');
 
-  const transformed = mapReadableStream(text, applyPronunciations);
-  return voiceNs.Agent.default.ttsNode(agent, transformed, modelSettings);
+  const textWithPronunciations = mapStream(text, applyPronunciations);
+
+  return voiceNs.Agent.default.ttsNode(agent, textWithPronunciations, modelSettings);
 }

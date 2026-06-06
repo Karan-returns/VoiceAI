@@ -19,11 +19,20 @@ import { attachSessionMetrics, logUsageSummary } from './utils/metrics.js';
 
 const logger = createLogger('agent');
 
+/**
+ * Worker entrypoint.
+ *
+ * Lifecycle:
+ *   1. prewarm()  -> load shared models once per worker process
+ *   2. entry()    -> run one call/session when LiveKit dispatches a room job
+ */
 export default defineAgent({
+  // Called once when the worker process starts (like loading a heavy model at startup).
   prewarm: async (proc: JobProcess) => {
     proc.userData.vad = await silero.VAD.load();
   },
 
+  // Called once per incoming call/room job.
   entry: async (ctx: JobContext) => {
     try {
       const providers = createProviders(config);
