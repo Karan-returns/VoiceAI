@@ -7,6 +7,5 @@ export function createDeepgramStt(cfg: SttConfig): stt.STT {
   return new deepgram.STT({
     model: cfg.model as 'nova-2-general',
     language: cfg.language,
-    fillerWords: true,
   });
 }

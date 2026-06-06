@@ -118,7 +118,7 @@ async function main(): Promise<void> {
   initializeLogger({ pretty: true, level: config.logLevel });
 
   const providers = createProviders(config);
-  const agent = new NovaTelAgent(config.pipeline);
+  const agent = new NovaTelAgent();
 
   const session = new voice.AgentSession({
     llm: providers.llm,

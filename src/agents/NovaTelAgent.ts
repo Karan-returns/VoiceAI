@@ -4,7 +4,6 @@ import type { TimedString } from '@livekit/agents';
 import type { AudioFrame } from '@livekit/rtc-node';
 import type { ReadableStream } from 'node:stream/web';
 
-import type { PipelineConfig } from '../config/types.js';
 import { runLlmNode } from '../pipeline/llmNode.js';
 import { runTranscriptionNode } from '../pipeline/sttNode.js';
 import { runTtsNode } from '../pipeline/ttsNode.js';
@@ -20,27 +19,18 @@ import { billingTools } from '../tools/billing.js';
  *   audio -> sttNode() -> transcriptionNode() -> llmNode() -> ttsNode() -> audio
  */
 export class NovaTelAgent extends voiceNs.Agent {
-  private readonly pipelineConfig: PipelineConfig;
-
-  constructor(pipeline: PipelineConfig) {
+  constructor() {
     super({
       instructions: NOVATEL_SUPPORT_PROMPT_V1,
       tools: billingTools,
     });
-    this.pipelineConfig = pipeline;
   }
 
-  // Stage 1b: clean transcript text (optional filler-word removal).
   override async transcriptionNode(
     text: ReadableStream<string | TimedString>,
     modelSettings: voice.ModelSettings,
   ): Promise<ReadableStream<string | TimedString> | null> {
-    return runTranscriptionNode(
-      this,
-      text,
-      modelSettings,
-      this.pipelineConfig.removeFillerWords,
-    );
+    return runTranscriptionNode(this, text, modelSettings);
   }
 
   // Stage 1a: speech-to-text (uses framework default).

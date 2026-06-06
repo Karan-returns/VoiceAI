@@ -24,15 +24,10 @@ export interface TtsConfig {
   voice: string;
 }
 
-export interface PipelineConfig {
-  removeFillerWords: boolean;
-}
-
 export interface AppConfig {
   mongodbUri?: string;
   stt: SttConfig;
   llm: LlmConfig;
   tts: TtsConfig;
-  pipeline: PipelineConfig;
   logLevel: string;
 }

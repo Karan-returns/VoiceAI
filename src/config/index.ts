@@ -10,14 +10,6 @@ function env(key: string, fallback?: string): string {
   return value;
 }
 
-function envBool(key: string, fallback: boolean): boolean {
-  const value = process.env[key];
-  if (value === undefined) {
-    return fallback;
-  }
-  return value === 'true' || value === '1';
-}
-
 function envNumber(key: string, fallback: number): number {
   const value = process.env[key];
   if (value === undefined) {
@@ -72,9 +64,6 @@ export const config: AppConfig = {
     provider: asTtsProvider(env('TTS_PROVIDER', 'deepgram')),
     model: env('TTS_MODEL', 'aura-asteria-en'),
     voice: env('TTS_VOICE', 'aura-asteria-en'),
-  },
-  pipeline: {
-    removeFillerWords: envBool('REMOVE_FILLER_WORDS', true),
   },
   logLevel: env('LOG_LEVEL', 'info'),
 };

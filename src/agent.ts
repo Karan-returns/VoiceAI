@@ -42,7 +42,7 @@ export default defineAgent({
 
     try {
       const providers = createProviders(config);
-      const agent = new NovaTelAgent(config.pipeline);
+      const agent = new NovaTelAgent();
 
       const session = new voice.AgentSession({
         vad: ctx.proc.userData.vad! as silero.VAD,
