@@ -4,6 +4,7 @@ import type { ReadableStream } from 'node:stream/web';
 import { NovaTelAgent } from '../agents/NovaTelAgent.js';
 import { config } from '../config/index.js';
 import { runLlmNode } from '../pipeline/llmNode.js';
+import { NOVATEL_SUPPORT_PROMPT_V1 } from '../prompts/novaTelSupport.v1.js';
 import { createProviders } from '../providers/index.js';
 
 const defaultQuestions = [
@@ -118,7 +119,7 @@ async function main(): Promise<void> {
   initializeLogger({ pretty: true, level: config.logLevel });
 
   const providers = createProviders(config);
-  const agent = new NovaTelAgent();
+  const agent = new NovaTelAgent(NOVATEL_SUPPORT_PROMPT_V1);
 
   const session = new voice.AgentSession({
     llm: providers.llm,

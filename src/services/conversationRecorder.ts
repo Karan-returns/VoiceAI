@@ -8,12 +8,11 @@ import {
   markConversationFailed,
 } from '../db/conversationRepository.js';
 import type { ConversationTurn } from '../db/types.js';
+import { scheduleCallAnalysis } from './callAnalysisService.js';
 import type { CallIdentity } from '../utils/callIdentity.js';
 import { createLogger } from '../utils/logger.js';
 
 const logger = createLogger('conversationRecorder');
-
-const PROMPT_VERSION = 'v1';
 
 function mapChatMessage(item: llm.ChatMessage, createdAt: number): ConversationTurn | null {
   const text = item.textContent?.trim();
@@ -50,6 +49,7 @@ export class ConversationRecorder {
   constructor(
     private readonly config: AppConfig,
     identity: CallIdentity,
+    private readonly promptVersion: string,
   ) {
     this.identity = identity;
   }
@@ -63,7 +63,7 @@ export class ConversationRecorder {
       jobId: this.identity.jobId,
       startedAt: this.startedAt,
       status: 'active',
-      promptVersion: PROMPT_VERSION,
+      promptVersion: this.promptVersion,
       providers: {
         stt: `${this.config.stt.provider}/${this.config.stt.model}`,
         llm: `${this.config.llm.provider}/${this.config.llm.model}`,
@@ -124,6 +124,10 @@ export class ConversationRecorder {
       { callId: this.identity.callId, status, closeReason },
       'Conversation saved to MongoDB',
     );
+
+    if (status === 'completed') {
+      scheduleCallAnalysis(this.identity.callId);
+    }
   }
 
   async fail(reason: string): Promise<void> {
@@ -141,8 +145,9 @@ export function attachConversationRecorder(
   session: voice.AgentSession,
   config: AppConfig,
   identity: CallIdentity,
+  promptVersion: string,
 ): ConversationRecorder {
-  const recorder = new ConversationRecorder(config, identity);
+  const recorder = new ConversationRecorder(config, identity, promptVersion);
   recorder.attach(session);
   return recorder;
 }

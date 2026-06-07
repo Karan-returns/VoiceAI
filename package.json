@@ -8,7 +8,10 @@
     "clean": "rm -rf dist",
     "typecheck": "tsc --noEmit",
     "test:llmNode": "tsx src/tests/llmNode.run.ts",
+    "test:promptEvolution": "tsx src/tests/promptEvolutionFailureExtraction.run.ts",
     "seed:billing": "tsx src/scripts/seedBilling.ts",
+    "analyze:call": "tsx src/scripts/analyzeCall.ts",
+    "evolve:prompt": "tsx src/scripts/evolvePrompt.ts",
     "dev": "tsx src/agent.ts dev",
     "start": "node dist/agent.js start",
     "download-files": "npx livekit-agents download-files"

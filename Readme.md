@@ -77,7 +77,7 @@ VoiceAgent/
     │   ├── analysis/           # Post-call QA pipeline (Step 3)
     │   ├── prompts/              # Agent + analysis prompts
     │   ├── db/                   # MongoDB client + conversation repository
-    │   ├── services/             # Conversation recorder
+    │   ├── services/             # Conversation recorder, analysis, prompt evolution
     │   ├── providers/            # STT, LLM, TTS factories
     │   └── tools/                # Billing lookup, escalation stubs
     ├── .env.example
@@ -134,11 +134,38 @@ npm run analyze:call -- --all       # all pending completed calls
 
 Set `CALL_ANALYSIS_ENABLED=false` to skip automatic post-call analysis.
 
+## Loop 2 — Post-call prompt evolution
+
+After analysis completes, the worker automatically evolves the base system prompt when **recurring failures** are detected (especially Loop 1 mid-call corrections that fired ≥2 times).
+
+### Pipeline
+
+1. **Failure extraction** — recurring mid-call correction signals + failed rubric items + `improvement_areas` from analysis JSON
+2. **Patch generation** — meta-prompt produces a targeted diff (one section: add or rewrite)
+3. **Auto-apply** — new version saved to `agent_prompts` and activated for the next call
+4. **Version history** — every version stores `triggeredByCallId`, `parentVersion`, patch summary, and failures addressed
+
+### Prompt storage
+
+Collection: `agent_prompts` · Active prompt loaded at worker startup (seeded from `novaTelSupport.v1.ts` on first run).
+
+### Manual commands
+
+```bash
+cd my-livekit-agent
+npm run evolve:prompt -- <callId>           # run evolution for one analyzed call
+npm run evolve:prompt -- list               # audit trail of all prompt versions
+npm run evolve:prompt -- show                 # full v1 vs active prompt diff
+npm run evolve:prompt -- show v1 v2           # before/after for specific versions
+npm run evolve:prompt -- rollback v2        # revert active prompt to a prior version
+```
+
+Set `PROMPT_EVOLUTION_ENABLED=false` to skip automatic prompt patching.
+
 ## Later steps (not built yet)
 
 - Step 2: Recording audio file + diarized transcript enrichment
 - Step 4: Report dashboard
-- Step 5: Self-healing prompt loops
 
 ## MongoDB — store conversations
 
@@ -172,7 +199,9 @@ MONGODB_URI=mongodb://127.0.0.1:27017/novatel
     { "role": "customer", "content": "My bill is wrong...", "timestamp": "..." }
   ],
   "analysisStatus": "completed",
-  "analysis": { "call_id": "...", "rubric_score": 72, "sentiment_arc": [], "call_flow": [], "flags": [], "agent_signals": {} }
+  "analysis": { "call_id": "...", "rubric_score": 72, "sentiment_arc": [], "call_flow": [], "flags": [], "agent_signals": {} },
+  "promptEvolutionStatus": "completed",
+  "promptEvolution": { "fromVersion": "v1", "toVersion": "v2", "failuresAddressed": ["..."] }
 }
 ```
 

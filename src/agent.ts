@@ -14,13 +14,15 @@ import { NovaTelAgent } from './agents/NovaTelAgent.js';
 import { config } from './config/index.js';
 import { seedBillingAccounts } from './db/billingRepository.js';
 import { connectMongo, ensureIndexes } from './db/client.js';
-import { NOVATEL_GREETING_INSTRUCTION } from './prompts/novaTelSupport.v1.js';
+import { NOVATEL_GREETING_INSTRUCTION, NOVATEL_SUPPORT_PROMPT_V1 } from './prompts/novaTelSupport.v1.js';
 import { createProviders } from './providers/index.js';
+import { scheduleCallAnalysis } from './services/callAnalysisService.js';
 import {
   attachConversationRecorder,
   type ConversationRecorder,
 } from './services/conversationRecorder.js';
 import { attachMidCallCorrection } from './services/midCallCorrection/index.js';
+import { ensurePromptSeeded, resolveAgentPrompt } from './services/promptLoader.js';
 import { resolveCallIdentity } from './utils/callIdentity.js';
 import { createLogger } from './utils/logger.js';
 import { attachSessionMetrics, logUsageSummary } from './utils/metrics.js';
@@ -35,6 +37,7 @@ export default defineAgent({
       await connectMongo(config.mongodbUri);
       await ensureIndexes();
       await seedBillingAccounts();
+      await ensurePromptSeeded();
     } else {
       logger.warn('MONGODB_URI not set — conversations and billing lookups will not work');
     }
@@ -45,7 +48,10 @@ export default defineAgent({
 
     try {
       const providers = createProviders(config);
-      const agent = new NovaTelAgent();
+      const agentPrompt = config.mongodbUri
+        ? await resolveAgentPrompt()
+        : { content: NOVATEL_SUPPORT_PROMPT_V1, version: 'v1' };
+      const agent = new NovaTelAgent(agentPrompt.content);
 
       const session = new voice.AgentSession({
         vad: ctx.proc.userData.vad! as silero.VAD,
@@ -54,24 +60,28 @@ export default defineAgent({
         tts: providers.tts,
         ttsTextTransforms: ['filter_markdown', 'filter_emoji'],
         turnHandling: {
-          turnDetection: 'stt',
+          // VAD-driven turns avoid STT/VAD desync that leaves the pipeline stuck (no EOU).
+          turnDetection: 'vad',
           interruption: {
             enabled: true,
+            mode: 'vad',
             resumeFalseInterruption: true,
-            falseInterruptionTimeout: 800,
-            mode: 'adaptive',
+            falseInterruptionTimeout: 2000,
+            minDuration: 600,
+            minWords: 2,
           },
           endpointing: {
-            mode: 'dynamic',
-            minDelay: 250,
-            maxDelay: 2000,
+            mode: 'fixed',
+            minDelay: 600,
+            maxDelay: 2500,
           },
           preemptiveGeneration: {
             enabled: true,
-            preemptiveTts: true,
+            // preemptiveTts caused overlapping speech handles and empty interrupted replies.
+            preemptiveTts: false,
           },
         },
-        useTtsAlignedTranscript: true,
+        useTtsAlignedTranscript: false,
         connOptions: {
           llmConnOptions: { maxRetry: 2, retryIntervalMs: 500, timeoutMs: 15000 },
           sttConnOptions: { maxRetry: 2, retryIntervalMs: 300, timeoutMs: 10000 },
@@ -85,7 +95,7 @@ export default defineAgent({
       attachMidCallCorrection(session, agent, { callId: callIdentity.callId });
 
       if (config.mongodbUri) {
-        recorder = attachConversationRecorder(session, config, callIdentity);
+        recorder = attachConversationRecorder(session, config, callIdentity, agentPrompt.version);
         await recorder.start();
       }
 
@@ -114,6 +124,7 @@ export default defineAgent({
           llm: `${config.llm.provider}/${config.llm.model}`,
           tts: `${config.tts.provider}/${config.tts.model}`,
           mongo: Boolean(config.mongodbUri),
+          promptVersion: agentPrompt.version,
         },
         'NovaTel agent session started',
       );

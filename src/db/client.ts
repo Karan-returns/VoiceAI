@@ -1,6 +1,7 @@
 import { MongoClient, type Db } from 'mongodb';
 
 import { BILLING_ACCOUNTS_COLLECTION } from './billingTypes.js';
+import { AGENT_PROMPTS_COLLECTION } from './promptTypes.js';
 import { createLogger } from '../utils/logger.js';
 
 const logger = createLogger('db');
@@ -55,4 +56,8 @@ export async function ensureIndexes(): Promise<void> {
     { accountLastFour: 1 },
     { unique: true },
   );
+  await database.collection(AGENT_PROMPTS_COLLECTION).createIndex({ version: 1 }, { unique: true });
+  await database.collection(AGENT_PROMPTS_COLLECTION).createIndex({ isActive: 1 });
+  await database.collection(AGENT_PROMPTS_COLLECTION).createIndex({ triggeredByCallId: 1 });
+  await database.collection(AGENT_PROMPTS_COLLECTION).createIndex({ createdAt: -1 });
 }

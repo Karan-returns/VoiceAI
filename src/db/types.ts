@@ -1,3 +1,7 @@
+import type { CallAnalysisScorecard } from '../analysis/types.js';
+import type { AnalysisStatus } from '../analysis/types.js';
+import type { PromptEvolutionStatus } from './promptTypes.js';
+
 export type MidCallCorrectionSignal =
   | 'de_escalation'
   | 'escalation_language'
@@ -30,6 +34,18 @@ export interface ConversationDocument {
   };
   turns: ConversationTurn[];
   corrections?: MidCallCorrectionRecord[];
+  analysis?: CallAnalysisScorecard;
+  analysisStatus?: AnalysisStatus;
+  analysisError?: string;
+  promptEvolutionStatus?: PromptEvolutionStatus;
+  promptEvolution?: {
+    fromVersion?: string;
+    toVersion?: string;
+    sectionPatched?: string;
+    patchSummary?: string;
+    failuresAddressed?: string[];
+    error?: string;
+  };
   usage?: unknown;
   createdAt: Date;
   updatedAt: Date;

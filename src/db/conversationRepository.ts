@@ -1,12 +1,15 @@
 import type { Collection } from 'mongodb';
 
 import { getDb } from './client.js';
+import type { CallAnalysisScorecard } from '../analysis/types.js';
+import type { AnalysisStatus } from '../analysis/types.js';
 import {
   CONVERSATIONS_COLLECTION,
   type ConversationDocument,
   type ConversationTurn,
   type MidCallCorrectionRecord,
 } from './types.js';
+import type { PromptEvolutionStatus } from './promptTypes.js';
 
 function conversations(): Collection<ConversationDocument> {
   return getDb().collection<ConversationDocument>(CONVERSATIONS_COLLECTION);
@@ -80,4 +83,68 @@ export async function markConversationFailed(callId: string, closeReason: string
     status: 'failed',
     closeReason,
   });
+}
+
+export async function getConversationByCallId(callId: string): Promise<ConversationDocument | null> {
+  return conversations().findOne({ callId });
+}
+
+export async function saveCallAnalysis(
+  callId: string,
+  analysis: CallAnalysisScorecard,
+): Promise<void> {
+  await conversations().updateOne(
+    { callId },
+    {
+      $set: {
+        analysis,
+        analysisStatus: 'completed' satisfies AnalysisStatus,
+        updatedAt: new Date(),
+      },
+      $unset: { analysisError: '' },
+    },
+  );
+}
+
+export async function setAnalysisStatus(
+  callId: string,
+  status: AnalysisStatus,
+  error?: string,
+): Promise<void> {
+  const update: Record<string, unknown> = {
+    analysisStatus: status,
+    updatedAt: new Date(),
+  };
+  if (error) {
+    update.analysisError = error;
+  }
+
+  await conversations().updateOne({ callId }, { $set: update });
+}
+
+export async function setPromptEvolutionStatus(
+  callId: string,
+  status: PromptEvolutionStatus,
+  detail?: ConversationDocument['promptEvolution'],
+): Promise<void> {
+  await conversations().updateOne(
+    { callId },
+    {
+      $set: {
+        promptEvolutionStatus: status,
+        ...(detail ? { promptEvolution: detail } : {}),
+        updatedAt: new Date(),
+      },
+    },
+  );
+}
+
+export async function listConversationsPendingAnalysis(): Promise<ConversationDocument[]> {
+  return conversations()
+    .find({
+      status: 'completed',
+      $or: [{ analysisStatus: { $exists: false } }, { analysisStatus: 'pending' }],
+    })
+    .sort({ endedAt: -1 })
+    .toArray();
 }
