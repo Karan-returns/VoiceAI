@@ -148,3 +148,67 @@ export async function listConversationsPendingAnalysis(): Promise<ConversationDo
     .sort({ endedAt: -1 })
     .toArray();
 }
+
+export interface ListConversationsOptions {
+  limit?: number;
+  offset?: number;
+  analysisStatus?: AnalysisStatus;
+  hasAnalysis?: boolean;
+}
+
+export async function listConversations(
+  options: ListConversationsOptions = {},
+): Promise<{ calls: ConversationDocument[]; total: number }> {
+  const { limit = 50, offset = 0, analysisStatus, hasAnalysis } = options;
+
+  const filter: Record<string, unknown> = { status: 'completed' };
+  if (analysisStatus) {
+    filter.analysisStatus = analysisStatus;
+  }
+  if (hasAnalysis === true) {
+    filter.analysis = { $exists: true };
+  }
+
+  const collection = conversations();
+  const [calls, total] = await Promise.all([
+    collection.find(filter).sort({ endedAt: -1 }).skip(offset).limit(limit).toArray(),
+    collection.countDocuments(filter),
+  ]);
+
+  return { calls, total };
+}
+
+export async function getAnalysisTrends(): Promise<
+  Array<{
+    callId: string;
+    startedAt: Date;
+    endedAt?: Date;
+    rubricScore: number;
+    sentimentTrend: string;
+    flagCount: number;
+    rubricPassed: number;
+    rubricTotal: number;
+  }>
+> {
+  const docs = await conversations()
+    .find({ status: 'completed', analysisStatus: 'completed', analysis: { $exists: true } })
+    .sort({ endedAt: 1 })
+    .project({
+      callId: 1,
+      startedAt: 1,
+      endedAt: 1,
+      analysis: 1,
+    })
+    .toArray();
+
+  return docs.map((doc) => ({
+    callId: doc.callId,
+    startedAt: doc.startedAt,
+    endedAt: doc.endedAt,
+    rubricScore: doc.analysis!.rubric_score,
+    sentimentTrend: doc.analysis!.sentiment_trend,
+    flagCount: doc.analysis!.flags.length,
+    rubricPassed: doc.analysis!.rubric.filter((r) => r.passed).length,
+    rubricTotal: doc.analysis!.rubric.length,
+  }));
+}

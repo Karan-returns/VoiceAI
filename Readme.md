@@ -68,6 +68,7 @@ npm run dev
 
 ```
 VoiceAgent/
+├── dashboard/                  # Step 4 — QA report dashboard (React + Express API)
 └── my-livekit-agent/
     ├── src/
     │   ├── agent.ts              # Worker entrypoint
@@ -162,10 +163,23 @@ npm run evolve:prompt -- rollback v2        # revert active prompt to a prior ve
 
 Set `PROMPT_EVOLUTION_ENABLED=false` to skip automatic prompt patching.
 
+## Step 4 — QA Report Dashboard
+
+Browser-based dashboard for reviewing analyzed calls visually (not raw JSON).
+
+```bash
+cd dashboard
+cp .env.example .env
+npm install
+npm run seed:demo   # optional — 3 sample calls
+npm run dev         # UI at http://localhost:5173
+```
+
+See `dashboard/README.md` for full details.
+
 ## Later steps (not built yet)
 
 - Step 2: Recording audio file + diarized transcript enrichment
-- Step 4: Report dashboard
 
 ## MongoDB — store conversations
 
