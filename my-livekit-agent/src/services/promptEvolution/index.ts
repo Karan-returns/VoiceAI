@@ -60,7 +60,7 @@ export async function evolvePromptAfterCall(callId: string): Promise<PromptEvolu
       selected,
     );
 
-    const newVersion = nextPromptVersion(activePrompt.version);
+    const newVersion = await nextPromptVersion();
     await savePromptVersion({
       version: newVersion,
       content: patchedContent,

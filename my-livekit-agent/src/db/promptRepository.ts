@@ -66,8 +66,17 @@ export async function syncSeedPromptContent(
 }
 
 export async function savePromptVersion(doc: AgentPromptDocument): Promise<void> {
-  await prompts().updateMany({ isActive: true }, { $set: { isActive: false } });
-  await prompts().insertOne({ ...doc, isActive: true });
+  const collection = prompts();
+  const existing = await collection.findOne({ version: doc.version });
+  if (existing) {
+    throw new Error(`Prompt version already exists: ${doc.version}`);
+  }
+
+  // Insert before deactivating the current active prompt so a failed insert
+  // does not leave the collection with no active version.
+  await collection.insertOne({ ...doc, isActive: false });
+  await collection.updateMany({ isActive: true }, { $set: { isActive: false } });
+  await collection.updateOne({ version: doc.version }, { $set: { isActive: true } });
 }
 
 export async function rollbackPromptToVersion(version: string): Promise<AgentPromptDocument | null> {
@@ -81,10 +90,17 @@ export async function rollbackPromptToVersion(version: string): Promise<AgentPro
   return { ...target, isActive: true };
 }
 
-export function nextPromptVersion(currentVersion: string): string {
-  const match = /^v(\d+)$/.exec(currentVersion);
-  if (!match?.[1]) {
-    return `${currentVersion}-evolved`;
+/** Next unused version label based on the highest existing vN in the collection. */
+export async function nextPromptVersion(): Promise<string> {
+  const versions = await prompts().find({}, { projection: { version: 1 } }).toArray();
+  let max = 0;
+
+  for (const entry of versions) {
+    const match = /^v(\d+)$/.exec(entry.version);
+    if (match?.[1]) {
+      max = Math.max(max, Number(match[1]));
+    }
   }
-  return `v${Number(match[1]) + 1}`;
+
+  return `v${max + 1}`;
 }
