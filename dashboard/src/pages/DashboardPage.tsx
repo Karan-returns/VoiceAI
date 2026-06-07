@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { fetchCalls, fetchTrends } from '../api';
 import TrendComparison from '../components/TrendComparison';
-import type { CallSummary, TrendPoint } from '../types';
+import type { CallSummary, ConversationRecording, TrendPoint } from '../types';
 import { formatDate, formatDuration, scoreColor, trendLabel } from '../utils/format';
 
 export default function DashboardPage() {
@@ -101,6 +101,16 @@ function Stat({ label, value, color }: { label: string; value: string; color?: s
   );
 }
 
+function RecordingBadge({ recording }: { recording?: ConversationRecording }) {
+  if (recording?.status === 'stored') {
+    return <span className="text-pass">Recording</span>;
+  }
+  if (recording?.status === 'pending') {
+    return <span className="text-warn">Recording pending</span>;
+  }
+  return <span className="text-text-muted">No recording</span>;
+}
+
 function CallCard({ call }: { call: CallSummary }) {
   const score = call.rubricScore ?? 0;
   const trend = call.sentimentTrend ? trendLabel(call.sentimentTrend) : null;
@@ -127,6 +137,8 @@ function CallCard({ call }: { call: CallSummary }) {
         <span>{formatDuration(call.durationMs)}</span>
         <span>·</span>
         <span>{call.turnCount ?? 0} turns</span>
+        <span>·</span>
+        <RecordingBadge recording={call.recording} />
         {(call.flagCount ?? 0) > 0 && (
           <>
             <span>·</span>

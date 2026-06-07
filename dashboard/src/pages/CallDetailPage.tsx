@@ -6,6 +6,7 @@ import CallFlowTimeline from '../components/CallFlowTimeline';
 import RubricCard from '../components/RubricCard';
 import ScoreRing from '../components/ScoreRing';
 import SentimentChart from '../components/SentimentChart';
+import RecordingPanel from '../components/RecordingPanel';
 import TranscriptPanel from '../components/TranscriptPanel';
 import type { CallDetail } from '../types';
 import { buildTurnAnnotations, formatDate, formatDuration, trendLabel } from '../utils/format';
@@ -85,6 +86,8 @@ export default function CallDetailPage() {
           </div>
         )}
       </div>
+
+      <RecordingPanel callId={call.callId} recording={call.recording} />
 
       {!analysis ? (
         <div className="bg-surface-raised border border-border-subtle rounded-xl p-8 text-center">

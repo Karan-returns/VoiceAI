@@ -21,3 +21,7 @@ export function fetchCall(callId: string): Promise<CallDetail> {
 export function fetchTrends(): Promise<{ trends: TrendPoint[] }> {
   return fetchJson('/api/trends');
 }
+
+export function recordingUrl(callId: string): string {
+  return `/api/calls/${encodeURIComponent(callId)}/recording`;
+}

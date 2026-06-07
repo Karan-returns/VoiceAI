@@ -62,6 +62,17 @@ export interface MidCallCorrection {
   turnIndex: number;
 }
 
+export type RecordingStatus = 'pending' | 'stored' | 'failed';
+
+export interface ConversationRecording {
+  status: RecordingStatus;
+  format: 'mp3';
+  filename?: string;
+  gridFsId?: string;
+  sizeBytes?: number;
+  error?: string;
+}
+
 export interface CallSummary {
   callId: string;
   roomName: string;
@@ -74,6 +85,7 @@ export interface CallSummary {
   sentimentTrend?: SentimentTrend;
   flagCount?: number;
   turnCount?: number;
+  recording?: ConversationRecording;
 }
 
 export interface CallDetail extends CallSummary {
@@ -82,6 +94,7 @@ export interface CallDetail extends CallSummary {
   corrections?: MidCallCorrection[];
   analysis?: CallAnalysisScorecard;
   analysisError?: string;
+  recording?: ConversationRecording;
 }
 
 export interface TrendPoint {

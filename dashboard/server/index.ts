@@ -1,10 +1,11 @@
 import 'dotenv/config';
 import cors from 'cors';
 import express from 'express';
-import { MongoClient, type Db } from 'mongodb';
+import { GridFSBucket, MongoClient, ObjectId, type Db } from 'mongodb';
 
 const PORT = Number(process.env.DASHBOARD_PORT ?? 3456);
 const MONGODB_URI = process.env.MONGODB_URI ?? 'mongodb://127.0.0.1:27017/novatel';
+const RECORDINGS_BUCKET = 'recordings';
 
 let db: Db;
 
@@ -15,11 +16,27 @@ async function connect(): Promise<Db> {
   return client.db(dbName);
 }
 
+function serializeRecording(doc: Record<string, unknown> | undefined) {
+  if (!doc) {
+    return undefined;
+  }
+
+  return {
+    status: doc.status,
+    format: doc.format,
+    filename: doc.filename,
+    gridFsId: doc.gridFsId,
+    sizeBytes: doc.sizeBytes,
+    error: doc.error,
+  };
+}
+
 function serializeCall(doc: Record<string, unknown>) {
   const analysis = doc.analysis as Record<string, unknown> | undefined;
   const turns = (doc.turns as unknown[]) ?? [];
   const startedAt = doc.startedAt as Date;
   const endedAt = doc.endedAt as Date | undefined;
+  const recording = serializeRecording(doc.recording as Record<string, unknown> | undefined);
 
   return {
     callId: doc.callId,
@@ -34,6 +51,7 @@ function serializeCall(doc: Record<string, unknown>) {
     sentimentTrend: analysis?.sentiment_trend as string | undefined,
     flagCount: (analysis?.flags as string[] | undefined)?.length,
     turnCount: turns.length,
+    recording,
   };
 }
 
@@ -61,7 +79,12 @@ function serializeDetail(doc: Record<string, unknown>) {
     corrections: corrections.length ? corrections : undefined,
     analysis: doc.analysis,
     analysisError: doc.analysisError,
+    recording: base.recording,
   };
+}
+
+function recordingsBucket(): GridFSBucket {
+  return new GridFSBucket(db, { bucketName: RECORDINGS_BUCKET });
 }
 
 async function main() {
@@ -105,6 +128,36 @@ async function main() {
         return;
       }
       res.json(serializeDetail(doc));
+    } catch (err) {
+      res.status(500).json({ error: String(err) });
+    }
+  });
+
+  app.get('/api/calls/:callId/recording', async (req, res) => {
+    try {
+      const { callId } = req.params;
+      const gfs = recordingsBucket();
+      const files = await gfs.find({ filename: `${callId}.mp3` }).limit(1).toArray();
+
+      if (files.length === 0) {
+        res.status(404).json({ error: 'Recording not present' });
+        return;
+      }
+
+      const file = files[0]!;
+      res.setHeader('Content-Type', 'audio/mpeg');
+      res.setHeader('Content-Disposition', `inline; filename="${callId}.mp3"`);
+      if (file.length) {
+        res.setHeader('Content-Length', String(file.length));
+      }
+
+      const stream = gfs.openDownloadStream(file._id as ObjectId);
+      stream.on('error', () => {
+        if (!res.headersSent) {
+          res.status(500).json({ error: 'Failed to stream recording' });
+        }
+      });
+      stream.pipe(res);
     } catch (err) {
       res.status(500).json({ error: String(err) });
     }
