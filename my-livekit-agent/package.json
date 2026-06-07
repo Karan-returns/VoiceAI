@@ -8,6 +8,7 @@
     "clean": "rm -rf dist",
     "typecheck": "tsc --noEmit",
     "test:llmNode": "tsx src/tests/llmNode.run.ts",
+    "test:pipelineLatency": "tsx src/tests/pipelineLatency.run.ts",
     "test:promptEvolution": "tsx src/tests/promptEvolutionFailureExtraction.run.ts",
     "seed:billing": "tsx src/scripts/seedBilling.ts",
     "analyze:call": "tsx src/scripts/analyzeCall.ts",
