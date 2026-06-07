@@ -1,5 +1,6 @@
 import {
   agentAddressedObjection,
+  detectDeEscalation,
   detectEscalationLanguage,
   detectObjectionTopic,
   scoreSentiment,
@@ -26,6 +27,11 @@ function run(): void {
     agentAddressedObjection('I understand how frustrating duplicate charges are.', 'bill_wrong'),
     'answered objection',
   );
+  assert(detectDeEscalation('Thank you, that helps') === 'thank_you', 'de-escalation thanks');
+  assert(detectDeEscalation('I understand your point') === 'understanding', 'de-escalation understanding');
+  assert(detectDeEscalation('Okay got it') === 'affirmation', 'de-escalation affirmation');
+  assert(detectEscalationLanguage('Thank you') === null, 'thank you is not escalation');
+  assert(detectEscalationLanguage('I will file a lawsuit') === 'lawsuit', 'lawsuit escalation');
 
   console.log('midCallCorrection signals: all checks passed');
 }

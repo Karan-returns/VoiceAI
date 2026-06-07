@@ -1,4 +1,5 @@
 export type MidCallCorrectionSignal =
+  | 'de_escalation'
   | 'escalation_language'
   | 'sentiment_drop'
   | 'unanswered_objection'

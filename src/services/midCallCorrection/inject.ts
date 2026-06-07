@@ -17,3 +17,13 @@ export function injectCorrectionBlock(chatCtx: llm.ChatContext, block: string): 
 
   chatCtx.insert(message);
 }
+
+export function clearCorrectionBlock(chatCtx: llm.ChatContext): boolean {
+  const idx = chatCtx.indexById(CORRECTION_MESSAGE_ID);
+  if (idx === undefined) {
+    return false;
+  }
+
+  chatCtx.items.splice(idx, 1);
+  return true;
+}

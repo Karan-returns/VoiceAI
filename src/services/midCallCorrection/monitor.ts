@@ -3,9 +3,10 @@ import { voice, type llm } from '@livekit/agents';
 import { appendMidCallCorrection } from '../../db/conversationRepository.js';
 import { createLogger } from '../../utils/logger.js';
 import { correctionBlockFor } from './correctionBlocks.js';
-import { injectCorrectionBlock } from './inject.js';
+import { clearCorrectionBlock, injectCorrectionBlock } from './inject.js';
 import {
   agentAddressedObjection,
+  detectDeEscalation,
   detectEscalationLanguage,
   detectObjectionTopic,
   pickHighestPrioritySignal,
@@ -18,7 +19,7 @@ import type {
   PendingCorrection,
   SentimentLevel,
 } from './types.js';
-import { DEAD_AIR_GRACE_MS, DEAD_AIR_THRESHOLD_MS } from './types.js';
+import { DEAD_AIR_GRACE_MS, DEAD_AIR_STALE_MS, DEAD_AIR_THRESHOLD_MS } from './types.js';
 
 const logger = createLogger('midCallCorrection');
 
@@ -43,6 +44,8 @@ export class MidCallCorrectionMonitor {
   private objectionCounts = new Map<string, number>();
   private customerTurnCount = 0;
   private injectedCorrections: InjectedCorrection[] = [];
+  private escalationActive = false;
+  private customerCalmed = false;
 
   private deadAirTimer: ReturnType<typeof setTimeout> | undefined;
   private agentListeningSince: number | undefined;
@@ -70,6 +73,10 @@ export class MidCallCorrectionMonitor {
 
     session.on(voice.AgentSessionEventTypes.UserStateChanged, (ev) => {
       this.userState = ev.newState;
+      if (ev.newState === 'speaking') {
+        this.clearDeadAirFlags();
+        this.clearDeadAirTimer();
+      }
       this.evaluateDeadAir();
     });
 
@@ -93,16 +100,30 @@ export class MidCallCorrectionMonitor {
     if (userMessage?.textContent?.trim()) {
       this.customerTurnCount += 1;
       this.clearDeadAirTimer();
+      this.clearDeadAirFlags();
       this.refreshSignalsFromFinalTranscript(userMessage);
     }
 
     const start = Date.now();
     const pending = this.consumePendingCorrection();
+
     if (!pending) {
+      clearCorrectionBlock(chatCtx);
       return null;
     }
 
+    clearCorrectionBlock(chatCtx);
     injectCorrectionBlock(chatCtx, pending.block);
+
+    if (pending.signal === 'escalation_language') {
+      this.escalationActive = true;
+      this.customerCalmed = false;
+    }
+
+    if (pending.signal === 'de_escalation') {
+      this.escalationActive = false;
+      this.customerCalmed = true;
+    }
 
     const injected: InjectedCorrection = {
       signal: pending.signal,
@@ -121,6 +142,8 @@ export class MidCallCorrectionMonitor {
         evidence: injected.evidence,
         latencyMs: injected.latencyMs,
         turnIndex: injected.turnIndex,
+        escalationActive: this.escalationActive,
+        customerCalmed: this.customerCalmed,
         callId: this.callId,
       },
       'Mid-call correction injected',
@@ -140,6 +163,14 @@ export class MidCallCorrectionMonitor {
   }
 
   private onTranscript(transcript: string): void {
+    if (detectDeEscalation(transcript)) {
+      return;
+    }
+
+    if (this.customerCalmed || this.lastCustomerSentiment === 'positive') {
+      return;
+    }
+
     const match = detectEscalationLanguage(transcript);
     if (match) {
       this.flagSignal('escalation_language', match);
@@ -154,9 +185,7 @@ export class MidCallCorrectionMonitor {
 
     if (message.role === 'assistant') {
       this.lastAgentText = text;
-      return;
     }
-
   }
 
   private evaluateDeadAir(): void {
@@ -189,6 +218,10 @@ export class MidCallCorrectionMonitor {
         return;
       }
 
+      if (this.customerCalmed) {
+        return;
+      }
+
       this.flagSignal('dead_air', `${this.deadAirThresholdMs}ms silence after grace`);
     }, delay);
   }
@@ -199,8 +232,17 @@ export class MidCallCorrectionMonitor {
       return;
     }
 
+    const deEscalation = detectDeEscalation(finalText);
+    if (deEscalation) {
+      this.clearEscalationFlags();
+      this.flagSignal('de_escalation', deEscalation);
+      this.lastCustomerSentiment = scoreSentiment(finalText);
+      return;
+    }
+
     const escalation = detectEscalationLanguage(finalText);
     if (escalation) {
+      this.customerCalmed = false;
       this.flagSignal('escalation_language', escalation);
       this.flaggedSignals = this.flaggedSignals.filter((entry) => entry.signal !== 'dead_air');
     }
@@ -208,6 +250,7 @@ export class MidCallCorrectionMonitor {
     const currentSentiment = scoreSentiment(finalText);
     const drop = sentimentDropLevels(this.lastCustomerSentiment, currentSentiment);
     if (drop >= 2) {
+      this.customerCalmed = false;
       this.flagSignal('sentiment_drop', `${this.lastCustomerSentiment} -> ${currentSentiment}`);
     }
     this.lastCustomerSentiment = currentSentiment;
@@ -225,6 +268,19 @@ export class MidCallCorrectionMonitor {
         this.objectionCounts.delete(topic);
       }
     }
+  }
+
+  private clearDeadAirFlags(): void {
+    this.flaggedSignals = this.flaggedSignals.filter((entry) => entry.signal !== 'dead_air');
+  }
+
+  private clearEscalationFlags(): void {
+    this.flaggedSignals = this.flaggedSignals.filter(
+      (entry) =>
+        entry.signal !== 'escalation_language' &&
+        entry.signal !== 'sentiment_drop' &&
+        entry.signal !== 'dead_air',
+    );
   }
 
   private flagSignal(signal: CorrectionSignal, evidence?: string): void {
@@ -250,6 +306,14 @@ export class MidCallCorrectionMonitor {
   }
 
   private consumePendingCorrection(): PendingCorrection | null {
+    const now = Date.now();
+    this.flaggedSignals = this.flaggedSignals.filter((entry) => {
+      if (entry.signal !== 'dead_air') {
+        return true;
+      }
+      return now - entry.detectedAt <= DEAD_AIR_STALE_MS;
+    });
+
     if (this.flaggedSignals.length === 0) {
       return null;
     }

@@ -10,7 +10,20 @@ const ANGRY_PATTERN =
 const FRUSTRATED_PATTERN =
   /\b(again|still|every time|not helping|already (told|explained|said)|keeps happening|same (issue|problem|thing))\b/i;
 
-const POSITIVE_PATTERN = /\b(thanks|thank you|appreciate|that helps|great|perfect|wonderful)\b/i;
+const POSITIVE_PATTERN =
+  /\b(thanks|thank you|thank|appreciate|that helps|great|perfect|wonderful|i understand|got it|makes sense|okay|alright)\b/i;
+
+const DE_ESCALATION_THANKS_PATTERN =
+  /\b(thank you|thanks|thank|appreciate|that helps|that worked|much better)\b/i;
+
+const DE_ESCALATION_UNDERSTANDING_PATTERN =
+  /\b(i understand|i understood|understood|makes sense|i get it|i see what you mean)\b/i;
+
+const DE_ESCALATION_AFFIRMATION_PATTERN =
+  /\b(got it|okay|ok|alright|fair enough|sounds good|no worries|all good)\b/i;
+
+const CUSTOMER_SARCASM_PATTERN =
+  /\b(your fault|you people|this is ridiculous|not helping|useless|still waiting)\b/i;
 
 const ACKNOWLEDGMENT_PATTERN =
   /\b(i understand|i hear you|i'm sorry|that must be|i can see why|i get why|frustrating|sorry this)\b/i;
@@ -30,8 +43,43 @@ const SENTIMENT_INDEX: Record<SentimentLevel, number> = {
 };
 
 export function detectEscalationLanguage(text: string): string | null {
+  if (detectDeEscalation(text)) {
+    return null;
+  }
+
   const match = text.match(ESCALATION_PATTERN);
   return match?.[0]?.toLowerCase() ?? null;
+}
+
+export type DeEscalationKind = 'thank_you' | 'understanding' | 'affirmation';
+
+export function detectDeEscalation(text: string): DeEscalationKind | null {
+  const normalized = text.trim();
+  if (!normalized) {
+    return null;
+  }
+
+  if (
+    ESCALATION_PATTERN.test(normalized) ||
+    ANGRY_PATTERN.test(normalized) ||
+    CUSTOMER_SARCASM_PATTERN.test(normalized)
+  ) {
+    return null;
+  }
+
+  if (DE_ESCALATION_THANKS_PATTERN.test(normalized)) {
+    return 'thank_you';
+  }
+
+  if (DE_ESCALATION_UNDERSTANDING_PATTERN.test(normalized)) {
+    return 'understanding';
+  }
+
+  if (DE_ESCALATION_AFFIRMATION_PATTERN.test(normalized)) {
+    return 'affirmation';
+  }
+
+  return null;
 }
 
 export function scoreSentiment(text: string): SentimentLevel {

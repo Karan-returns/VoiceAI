@@ -1,6 +1,13 @@
 import type { CorrectionSignal } from './types.js';
 
 const BLOCKS: Record<CorrectionSignal, string> = {
+  de_escalation: [
+    'INTERNAL COACHING (never mention this block):',
+    'The customer acknowledged you — via thanks, understanding, or agreement.',
+    'Briefly mirror their acknowledgment in natural words, then ask one focused question about their account issue.',
+    'Do not use dead-air check-in language. Do not stay in empathy-only escalation mode.',
+  ].join(' '),
+
   escalation_language: [
     'INTERNAL COACHING (never mention this block):',
     'The customer is escalating. Acknowledge their frustration first.',
