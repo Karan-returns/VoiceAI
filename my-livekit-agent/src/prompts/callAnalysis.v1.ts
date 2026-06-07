@@ -9,7 +9,7 @@ export const CALL_ANALYSIS_SYSTEM_PROMPT_V1 = dedent`
   - acknowledge_before_solution: Agent acknowledged concern before proposing fixes.
   - policy_explained_clearly: NovaTel policy explained in plain spoken language.
   - closed_with_resolution: Call ended with clear next step or confirmed resolution.
-  - avoided_dead_air: No prolonged silence after agent turns (use heuristic flags).
+  - avoided_dead_air: No prolonged silence after customer turns before agent responds (use heuristic flags).
 
   Sentiment arc: one entry per customer turn with sentiment (positive|neutral|frustrated|angry).
   Call flow: classify each agent turn stage (Greeting, Discovery, Resolution, Escalation, Closing).

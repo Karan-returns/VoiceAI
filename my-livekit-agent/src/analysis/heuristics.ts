@@ -41,7 +41,7 @@ export function computeHeuristicSignals(turns: ConversationTurn[]): HeuristicSig
     if (!turn || !previous) {
       continue;
     }
-    if (previous.role === 'agent' && turn.role === 'customer') {
+    if (previous.role === 'customer' && turn.role === 'agent') {
       const gap = turnGapSeconds(turns, index);
       if (gap >= 3) {
         deadAirFlags.push(`dead_air_at_${formatTimestamp(turn.timestamp.getTime() / 1000)}`);

@@ -22,7 +22,7 @@ const RUBRIC_FAILURE_DESCRIPTIONS: Record<string, string> = {
     'Agent proposed solutions before acknowledging the customer concern',
   policy_explained_clearly: 'Agent did not explain NovaTel policy in clear plain language',
   closed_with_resolution: 'Agent did not close with a clear resolution or next step',
-  avoided_dead_air: 'Call had prolonged dead air after agent turns',
+  avoided_dead_air: 'Call had prolonged dead air before agent responses',
 };
 
 export function extractRecurringFailures(input: {
