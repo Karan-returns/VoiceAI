@@ -15,8 +15,9 @@ import { config } from './config/index.js';
 import { seedBillingAccounts } from './db/billingRepository.js';
 import { connectMongo, ensureIndexes } from './db/client.js';
 import { NOVATEL_GREETING_INSTRUCTION, NOVATEL_SUPPORT_PROMPT_V1 } from './prompts/novaTelSupport.v1.js';
-import { createProviders } from './providers/index.js';
+import { createProviders, type Providers } from './providers/index.js';
 import { scheduleCallAnalysis } from './services/callAnalysisService.js';
+import { warmupLlm } from './services/connectionWarmup.js';
 import {
   attachConversationRecorder,
   type ConversationRecorder,
@@ -33,6 +34,18 @@ export default defineAgent({
   prewarm: async (proc: JobProcess) => {
     proc.userData.vad = await silero.VAD.load();
 
+    // Build providers once on the idle worker and warm the LLM connection BEFORE a
+    // call arrives, so the first turn skips the cold-connection penalty. The same
+    // instances are reused in `entry` so the primed keep-alive connection is the one
+    // used at call time.
+    //
+    // Fire-and-forget: the cold warmup can take >10s, and prewarm must return within
+    // `initializeProcessTimeout` or the worker orphans the process. Running it in the
+    // background lets init finish fast while the connection warms on the idle worker.
+    const providers = createProviders(config);
+    proc.userData.providers = providers;
+    void warmupLlm(providers.llm);
+
     if (config.mongodbUri) {
       await connectMongo(config.mongodbUri);
       await ensureIndexes();
@@ -47,7 +60,18 @@ export default defineAgent({
     let recorder: ConversationRecorder | undefined;
 
     try {
-      const providers = createProviders(config);
+      const entryStartedAt = Date.now();
+
+      // Connect to the room as early as possible. WebRTC join is the largest single
+      // chunk of first-call latency; kicking it off here overlaps it with the DB and
+      // session setup below instead of paying it serially inside session.start().
+      const connectPromise = ctx.connect();
+
+      // Reuse the providers warmed during prewarm; fall back to a fresh build if the
+      // process was started without the prewarm hook (e.g. some test paths).
+      const providers =
+        (ctx.proc.userData.providers as Providers | undefined) ?? createProviders(config);
+
       const agentPrompt = config.mongodbUri
         ? await resolveAgentPrompt()
         : { content: NOVATEL_SUPPORT_PROMPT_V1, version: 'v1' };
@@ -72,7 +96,7 @@ export default defineAgent({
           },
           endpointing: {
             mode: 'fixed',
-            minDelay: 600,
+            minDelay: 400,
             maxDelay: 2500,
           },
           preemptiveGeneration: {
@@ -108,6 +132,12 @@ export default defineAgent({
         }
       });
 
+      // Ensure the room is connected (kicked off at the top of entry) before starting
+      // the session pipeline.
+      await connectPromise;
+      const roomConnectedMs = Date.now() - entryStartedAt;
+
+      const sessionStartAt = Date.now();
       await session.start({
         agent,
         room: ctx.room,
@@ -115,6 +145,7 @@ export default defineAgent({
           noiseCancellation: BackgroundVoiceCancellation(),
         },
       });
+      const sessionStartMs = Date.now() - sessionStartAt;
 
       logger.info(
         {
@@ -126,13 +157,20 @@ export default defineAgent({
           tts: `${config.tts.provider}/${config.tts.model}`,
           mongo: Boolean(config.mongodbUri),
           promptVersion: agentPrompt.version,
+          roomConnectedMs,
+          sessionStartMs,
         },
         'NovaTel agent session started',
       );
 
+      const greetingStartAt = Date.now();
       await session.generateReply({
         instructions: NOVATEL_GREETING_INSTRUCTION,
       });
+      logger.info(
+        { callId: callIdentity.callId, greetingMs: Date.now() - greetingStartAt },
+        'Greeting dispatched',
+      );
     } catch (err) {
       logger.error({ err, room: ctx.room.name }, 'Agent session failed');
 
@@ -145,4 +183,14 @@ export default defineAgent({
   },
 });
 
-cli.runApp(new ServerOptions({ agent: fileURLToPath(import.meta.url) }));
+cli.runApp(
+  new ServerOptions({
+    agent: fileURLToPath(import.meta.url),
+    // Dev defaults to 0 idle workers (cold start on every call). Keep one prewarmed
+    // so VAD + Mongo are ready before the first test call connects.
+    numIdleProcesses: 1,
+    // Headroom over the 10s default so VAD load + Mongo connect during prewarm never
+    // trips the init timeout (which orphans the process and breaks the next job).
+    initializeProcessTimeout: 30_000,
+  }),
+);

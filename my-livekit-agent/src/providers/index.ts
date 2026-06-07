@@ -12,6 +12,8 @@ export function createProviders(cfg: AppConfig) {
   };
 }
 
+export type Providers = ReturnType<typeof createProviders>;
+
 export { createStt } from './stt/index.js';
 export { createLlm } from './llm/index.js';
 export { createTts } from './tts/index.js';
