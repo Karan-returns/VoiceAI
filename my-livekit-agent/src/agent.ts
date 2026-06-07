@@ -102,9 +102,19 @@ export default defineAgent({
             maxDelay: 2500,
           },
           preemptiveGeneration: {
-            // Disabled: preemptive LLM runs raced with onUserTurnCompleted and pruned
-            // in-flight billing tool outputs, causing silent/failed lookups after digits.
-            enabled: false,
+            // Re-enabled: the framework guards correctness for billing turns. It runs
+            // onUserTurnCompleted (which injects the billing prefetch) on a copy of the
+            // chat context, then discards any preemptive generation whose context
+            // snapshot no longer matches (agent_activity isEquivalent check). So on
+            // digit/known-account turns the speculative run is dropped and a fresh
+            // generation runs WITH the billing data; the speculative run never commits
+            // its tool call to the live context (and pruneOrphanToolItems in
+            // onUserTurnCompleted + llmNode cleans any stragglers). Non-billing turns —
+            // the common case — get the LLM head start.
+            //
+            // preemptiveTts stays off: LLM TTFT is the dominant cost, and preempting TTS
+            // is riskier (audio synthesized before the turn is confirmed).
+            enabled: true,
             preemptiveTts: false,
           },
         },
