@@ -76,8 +76,9 @@ export default defineAgent({
             maxDelay: 2500,
           },
           preemptiveGeneration: {
-            enabled: true,
-            // preemptiveTts caused overlapping speech handles and empty interrupted replies.
+            // Disabled: preemptive LLM runs raced with onUserTurnCompleted and pruned
+            // in-flight billing tool outputs, causing silent/failed lookups after digits.
+            enabled: false,
             preemptiveTts: false,
           },
         },

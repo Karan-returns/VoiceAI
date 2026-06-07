@@ -34,6 +34,10 @@ function invalidDigitsResult(
   });
 }
 
+export async function runBillingLookup(lastFour: string, billMonth?: string): Promise<string> {
+  return lookupAccount(lastFour, billMonth);
+}
+
 async function lookupAccount(lastFour: string, billMonth?: string) {
   const normalized = normalizeLastFour(lastFour);
   if (!normalized.ok) {

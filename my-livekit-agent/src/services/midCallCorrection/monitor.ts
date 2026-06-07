@@ -38,18 +38,40 @@ export class MidCallCorrectionMonitor {
   private readonly callId?: string;
   private readonly deadAirThresholdMs: number;
 
+  // Stores all detected correction signals flagged for this session, with evidence and detection time.
   private flaggedSignals: FlaggedSignal[] = [];
+
+  // Tracks the last known sentiment of the customer ('positive', 'neutral', 'negative').
   private lastCustomerSentiment: SentimentLevel = 'neutral';
+
+  // Stores the last message sent by the agent, used for comparison and correction logic.
   private lastAgentText = '';
+
+  // Keeps a count of detected objections by topic/phrase for repeated objection logic.
   private objectionCounts = new Map<string, number>();
+
+  // Number of customer turns processed so far (incremented each time a user message is handled).
   private customerTurnCount = 0;
+
+  // Holds a list of corrections that have been injected into the chat context for the agent to follow.
   private injectedCorrections: InjectedCorrection[] = [];
+
+  // Indicates if escalation mode is currently active (customer showing escalatory behavior).
   private escalationActive = false;
+
+  // Indicates if customer's sentiment has de-escalated after an escalation.
   private customerCalmed = false;
 
+  // Timer reference for dead-air (prolonged silence) detection logic.
   private deadAirTimer: ReturnType<typeof setTimeout> | undefined;
+
+  // Timestamp (ms since epoch) when the agent last entered the 'listening' state, for dead-air tracking.
   private agentListeningSince: number | undefined;
+
+  // Tracks the current state of the user in the conversation ('listening', 'speaking', etc).
   private userState: voice.UserState = 'listening';
+
+  // Tracks the current state of the agent in the conversation ('initializing', 'listening', 'speaking', etc).
   private agentState: voice.AgentState = 'initializing';
 
   constructor(options: MidCallCorrectionMonitorOptions = {}) {
