@@ -17,7 +17,7 @@ import { connectMongo, ensureIndexes } from './db/client.js';
 import { NOVATEL_GREETING_INSTRUCTION, NOVATEL_SUPPORT_PROMPT_V1 } from './prompts/novaTelSupport.v1.js';
 import { createProviders, type Providers } from './providers/index.js';
 import { scheduleCallAnalysis } from './services/callAnalysisService.js';
-import { warmupLlm } from './services/connectionWarmup.js';
+import { warmupLlm, warmupTts } from './services/connectionWarmup.js';
 import {
   attachConversationRecorder,
   type ConversationRecorder,
@@ -34,17 +34,19 @@ export default defineAgent({
   prewarm: async (proc: JobProcess) => {
     proc.userData.vad = await silero.VAD.load();
 
-    // Build providers once on the idle worker and warm the LLM connection BEFORE a
-    // call arrives, so the first turn skips the cold-connection penalty. The same
-    // instances are reused in `entry` so the primed keep-alive connection is the one
-    // used at call time.
+    // Build providers once on the idle worker and warm the LLM + TTS connections
+    // BEFORE a call arrives, so the first turn skips the cold-connection penalty
+    // (which dominated the LLM TTFT and TTS TTFB averages). The same instances are
+    // reused in `entry` so the primed keep-alive connections are the ones used at
+    // call time.
     //
     // Fire-and-forget: the cold warmup can take >10s, and prewarm must return within
     // `initializeProcessTimeout` or the worker orphans the process. Running it in the
-    // background lets init finish fast while the connection warms on the idle worker.
+    // background lets init finish fast while the connections warm on the idle worker.
     const providers = createProviders(config);
     proc.userData.providers = providers;
     void warmupLlm(providers.llm);
+    void warmupTts(providers.tts);
 
     if (config.mongodbUri) {
       await connectMongo(config.mongodbUri);
