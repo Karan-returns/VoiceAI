@@ -94,7 +94,7 @@ async function lookupPaymentHistory(lastFour: string, paymentDate: string) {
 
 export const lookupBillingAccount = llm.tool({
   description:
-    'Look up a NovaTel customer billing account by the last four digits of their account or phone number. Only call after the customer has provided exactly four digits.',
+    'Look up a NovaTel customer billing account by the last four digits of their account or phone number. Only call once per call after the customer first provides four digits. Do not call again for follow-up questions — prefetched billing data is already in context.',
   parameters: z.object({
     lastFour: z.string().describe('Last four digits of account or phone as spoken or written'),
     billMonth: z.string().optional().describe('Bill month in YYYY-MM if known'),

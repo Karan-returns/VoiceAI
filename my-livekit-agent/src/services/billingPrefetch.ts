@@ -75,45 +75,93 @@ function injectBillingPrefetch(chatCtx: llm.ChatContext, content: string): void 
   chatCtx.insert(message);
 }
 
-/**
- * When the customer provides four account digits (numeric or spoken words),
- * run billing lookup before the LLM turn so the agent cannot skip the tool.
- */
-export async function injectBillingPrefetchIfDigits(
-  chatCtx: llm.ChatContext,
-  userText: string,
-): Promise<boolean> {
-  clearBillingPrefetch(chatCtx);
+export type BillingPrefetchSource = 'user' | 'known';
 
+export interface BillingPrefetchResult {
+  injected: boolean;
+  lastFour?: string;
+  source?: BillingPrefetchSource;
+}
+
+/**
+ * Pick account digits from the current utterance, or reuse the account already
+ * identified earlier in this call.
+ */
+export function resolveAccountLastFour(
+  userText: string,
+  knownLastFour?: string,
+): { lastFour: string; billMonth?: string; source: BillingPrefetchSource } | null {
   const normalized = normalizeLastFour(userText);
-  if (!normalized.ok) {
-    return false;
+  if (normalized.ok) {
+    const billMonth = extractBillMonth(userText);
+    return billMonth
+      ? { lastFour: normalized.lastFour, billMonth, source: 'user' }
+      : { lastFour: normalized.lastFour, source: 'user' };
   }
 
-  const billMonth = extractBillMonth(userText);
+  if (knownLastFour) {
+    return { lastFour: knownLastFour, source: 'known' };
+  }
+
+  return null;
+}
+
+/**
+ * Inject billing lookup results before the LLM turn.
+ *
+ * Runs on digit turns and on follow-up turns once an account is known so the
+ * agent never re-calls lookupBillingAccount mid-call (which caused "please hold"
+ * stalls when prefetch was cleared after the digit turn).
+ */
+export async function refreshBillingPrefetch(
+  chatCtx: llm.ChatContext,
+  options: { userText: string; knownLastFour?: string },
+): Promise<BillingPrefetchResult> {
+  const resolved = resolveAccountLastFour(options.userText, options.knownLastFour);
+
+  if (!resolved) {
+    clearBillingPrefetch(chatCtx);
+    return { injected: false };
+  }
 
   try {
-    const lookupJson = await runBillingLookup(normalized.lastFour, billMonth);
+    const lookupJson = await runBillingLookup(resolved.lastFour, resolved.billMonth);
+
+    const intro =
+      resolved.source === 'user'
+        ? `Billing lookup already completed for account digits ${resolved.lastFour}.`
+        : `Billing lookup for account digits ${resolved.lastFour} is still current for this call.`;
 
     injectBillingPrefetch(
       chatCtx,
       [
-        `Billing lookup already completed for account digits ${normalized.lastFour}.`,
+        intro,
         `Tool result: ${lookupJson}`,
-        'Use this data in your spoken response now.',
-        'Do not ask the customer to repeat their digits unless the account was not found.',
-        'Do not say you will check — the lookup is already done.',
+        'Billing data is loaded — answer the customer now in this same turn.',
+        'Use duplicateChargeFlag, recentCharges, plan, and totalDue from the result.',
+        'Do not call lookupBillingAccount again for this account.',
+        'Do not say please hold, let me check, or one moment.',
+        'Do not ask for digits again unless found is false.',
       ].join(' '),
     );
 
     logger.info(
-      { lastFour: normalized.lastFour, billMonth },
-      'Billing lookup prefetched from customer digits',
+      { lastFour: resolved.lastFour, billMonth: resolved.billMonth, source: resolved.source },
+      'Billing lookup prefetched',
     );
 
-    return true;
+    return { injected: true, lastFour: resolved.lastFour, source: resolved.source };
   } catch (err) {
-    logger.error({ err, lastFour: normalized.lastFour }, 'Billing prefetch failed');
-    return false;
+    logger.error({ err, lastFour: resolved.lastFour }, 'Billing prefetch failed');
+    return { injected: false, lastFour: resolved.lastFour, source: resolved.source };
   }
+}
+
+/** @deprecated Use refreshBillingPrefetch */
+export async function injectBillingPrefetchIfDigits(
+  chatCtx: llm.ChatContext,
+  userText: string,
+): Promise<boolean> {
+  const result = await refreshBillingPrefetch(chatCtx, { userText });
+  return result.injected;
 }

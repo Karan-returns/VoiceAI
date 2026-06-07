@@ -7,7 +7,8 @@ import type { ReadableStream } from 'node:stream/web';
 import { runLlmNode } from '../pipeline/llmNode.js';
 import { runTranscriptionNode } from '../pipeline/sttNode.js';
 import { runTtsNode } from '../pipeline/ttsNode.js';
-import { injectBillingPrefetchIfDigits } from '../services/billingPrefetch.js';
+import { refreshBillingPrefetch } from '../services/billingPrefetch.js';
+import { normalizeLastFour } from '../utils/normalizeLastFour.js';
 import type { MidCallCorrectionMonitor } from '../services/midCallCorrection/monitor.js';
 import { billingTools } from '../tools/billing.js';
 import { pruneOrphanToolItems } from '../utils/pruneOrphanToolItems.js';
@@ -22,6 +23,7 @@ import { pruneOrphanToolItems } from '../utils/pruneOrphanToolItems.js';
  */
 export class NovaTelAgent extends voiceNs.Agent {
   private correctionMonitor: MidCallCorrectionMonitor | undefined;
+  private knownAccountLastFour: string | undefined;
 
   constructor(instructions: string) {
     super({
@@ -43,7 +45,17 @@ export class NovaTelAgent extends voiceNs.Agent {
 
     const userText = newMessage.textContent?.trim();
     if (userText) {
-      await injectBillingPrefetchIfDigits(chatCtx, userText);
+      const normalized = normalizeLastFour(userText);
+      if (normalized.ok) {
+        this.knownAccountLastFour = normalized.lastFour;
+      }
+
+      await refreshBillingPrefetch(chatCtx, {
+        userText,
+        ...(this.knownAccountLastFour
+          ? { knownLastFour: this.knownAccountLastFour }
+          : {}),
+      });
     }
   }
 

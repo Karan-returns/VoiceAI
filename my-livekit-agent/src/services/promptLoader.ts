@@ -1,5 +1,5 @@
 import { NOVATEL_SUPPORT_PROMPT_V1 } from '../prompts/novaTelSupport.v1.js';
-import { getActivePrompt, seedPromptIfEmpty } from '../db/promptRepository.js';
+import { getActivePrompt, seedPromptIfEmpty, syncSeedPromptContent } from '../db/promptRepository.js';
 import { createLogger } from '../utils/logger.js';
 
 const logger = createLogger('promptLoader');
@@ -9,6 +9,7 @@ const SEED_CALL_ID = 'system_seed';
 
 export async function ensurePromptSeeded(): Promise<void> {
   await seedPromptIfEmpty(SEED_VERSION, NOVATEL_SUPPORT_PROMPT_V1, SEED_CALL_ID);
+  await syncSeedPromptContent(SEED_VERSION, NOVATEL_SUPPORT_PROMPT_V1);
 }
 
 export async function resolveAgentPrompt(): Promise<{ content: string; version: string }> {

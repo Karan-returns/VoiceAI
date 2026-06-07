@@ -48,6 +48,23 @@ export async function seedPromptIfEmpty(
   return doc;
 }
 
+/** Update the untouched v1 seed when the static prompt file changes (dev convenience). */
+export async function syncSeedPromptContent(
+  version: string,
+  content: string,
+): Promise<void> {
+  const doc = await getPromptByVersion(version);
+  if (
+    !doc ||
+    doc.patchSummary !== 'Initial base prompt' ||
+    doc.content === content
+  ) {
+    return;
+  }
+
+  await prompts().updateOne({ version }, { $set: { content } });
+}
+
 export async function savePromptVersion(doc: AgentPromptDocument): Promise<void> {
   await prompts().updateMany({ isActive: true }, { $set: { isActive: false } });
   await prompts().insertOne({ ...doc, isActive: true });
