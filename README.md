@@ -181,7 +181,33 @@ See `dashboard/README.md` for full details.
 
 ## Later steps (not built yet)
 
-- Step 2: Recording audio file + diarized transcript enrichment
+- Diarized transcript enrichment
+
+## Call recording — full MP3 in MongoDB
+
+When `RECORDING_ENABLED=true`, every call is recorded as a single mixed MP3 (customer + agent) and stored in MongoDB **GridFS**, keyed by `callId`.
+
+How it works: the agent uses the built-in `AgentSession` recorder (`session.start({ record: true })`), which runs entirely in-process — it intercepts the customer's input audio and the agent's output audio, mixes them to a stereo stream (customer left / agent right), and writes a local OGG/Opus file. On call end the agent transcodes that file to MP3 with the bundled ffmpeg and streams it into GridFS (`recordings.files` / `recordings.chunks`). A `recording` reference is also written on the `conversations` document.
+
+No external storage is needed — because the agent is itself a participant in the room, it captures the audio directly. (LiveKit Cloud egress was intentionally avoided here: Cloud egress can only upload to a publicly reachable bucket, so it can't write to a local MongoDB / MinIO.)
+
+Setup is just:
+
+```env
+RECORDING_ENABLED=true
+MONGODB_URI=mongodb://127.0.0.1:27017/novatel
+```
+
+Recording is best-effort — if transcoding or storage fails the call still completes; the failure is logged and recorded as `recording.status: "failed"` on the conversation.
+
+### Retrieve a stored recording
+
+```bash
+cd my-livekit-agent
+npm run export:recording -- <callId> [outPath]   # writes <callId>.mp3 by default
+```
+
+You can also browse the `recordings.files` collection in MongoDB Compass to confirm the file exists for a given `callId`.
 
 ## MongoDB — store conversations
 

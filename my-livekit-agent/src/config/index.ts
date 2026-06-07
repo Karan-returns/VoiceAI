@@ -22,6 +22,14 @@ function envNumber(key: string, fallback: number): number {
   return parsed;
 }
 
+function envBool(key: string, fallback: boolean): boolean {
+  const value = process.env[key];
+  if (value === undefined) {
+    return fallback;
+  }
+  return value.toLowerCase() === 'true' || value === '1';
+}
+
 function asSttProvider(value: string): SttProvider {
   if (value === 'livekit' || value === 'deepgram' || value === 'assemblyai' || value === 'whisper') {
     return value;
@@ -58,12 +66,15 @@ export const config: AppConfig = {
   llm: {
     provider: asLlmProvider(env('LLM_PROVIDER', 'livekit')),
     model: env('LLM_MODEL', 'openai/gpt-4.1-nano'),
-    temperature: envNumber('LLM_TEMPERATURE', 0.7),
+    temperature: envNumber('LLM_TEMPERATURE', 0.3),
   },
   tts: {
     provider: asTtsProvider(env('TTS_PROVIDER', 'livekit')),
     model: env('TTS_MODEL', 'cartesia/sonic-turbo'),
     voice: env('TTS_VOICE', 'f786b574-daa5-4673-aa0c-cbe3e8534c02'),
+  },
+  recording: {
+    enabled: envBool('RECORDING_ENABLED', false),
   },
   logLevel: env('LOG_LEVEL', 'info'),
 };

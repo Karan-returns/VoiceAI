@@ -130,6 +130,8 @@ function normalizeCallFlow(
   });
 }
 
+const RUBRIC_PASS_THRESHOLD = 12;
+
 function normalizeRubric(raw: unknown): CallAnalysisScorecard['rubric'] {
   if (!Array.isArray(raw)) {
     return [];
@@ -144,8 +146,12 @@ function normalizeRubric(raw: unknown): CallAnalysisScorecard['rubric'] {
       if (typeof record.id !== 'string' || typeof record.label !== 'string') {
         return null;
       }
-      const passed = Boolean(record.passed);
-      const score = typeof record.score === 'number' ? record.score : passed ? 20 : 0;
+      const rawScore =
+        typeof record.score === 'number' ? record.score : record.passed ? 20 : 0;
+      // Clamp to the per-item 0-20 range so a hallucinated score can't skew the total.
+      const score = Math.max(0, Math.min(20, Math.round(rawScore)));
+      // Derive pass/fail from the score so the UI checkmark always matches the number shown.
+      const passed = score >= RUBRIC_PASS_THRESHOLD;
       return {
         id: record.id,
         label: record.label,
@@ -168,10 +174,9 @@ export function normalizeAnalysisPayload(
   },
 ): Record<string, unknown> {
   const rubric = normalizeRubric(parsed.rubric);
-  const rubricScore =
-    typeof parsed.rubric_score === 'number'
-      ? parsed.rubric_score
-      : rubric.reduce((sum, item) => sum + item.score, 0);
+  // Always derive the headline score from the (clamped) item scores so the ring matches the
+  // rubric breakdown the user sees, regardless of any rubric_score the model reports.
+  const rubricScore = rubric.reduce((sum, item) => sum + item.score, 0);
 
   const rawSignals =
     parsed.agent_signals && typeof parsed.agent_signals === 'object'

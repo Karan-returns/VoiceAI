@@ -24,10 +24,19 @@ export interface TtsConfig {
   voice: string;
 }
 
+export interface RecordingConfig {
+  /**
+   * When true, the built-in AgentSession recorder captures the mixed call audio,
+   * which is transcoded to MP3 and stored in MongoDB GridFS. Requires MONGODB_URI.
+   */
+  enabled: boolean;
+}
+
 export interface AppConfig {
   mongodbUri?: string;
   stt: SttConfig;
   llm: LlmConfig;
   tts: TtsConfig;
+  recording: RecordingConfig;
   logLevel: string;
 }

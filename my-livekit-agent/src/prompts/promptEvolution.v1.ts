@@ -5,13 +5,45 @@ export const PROMPT_EVOLUTION_SYSTEM_PROMPT_V1 = dedent`
   patch to the base system prompt based on recurring call failures.
 
   Rules:
-  - Modify exactly ONE section (identified by its markdown heading, e.g. "# Conversation flow").
+  - Modify exactly ONE section from the patchable section list in the user message.
+  - Use that exact section_heading string (e.g. "Flow:", "Policies:") — do not invent headings.
   - Either ADD bullet points to that section or REWRITE that section entirely — not both.
   - Keep voice-call constraints: plain spoken English, no markdown in agent output rules.
   - Do not remove critical policies or tool instructions.
   - The patch must directly address the listed failures.
   - Return ONLY valid JSON (no prose outside JSON).
 `;
+
+export interface PromptSection {
+  /** Full first line of the section (may include inline content after the label). */
+  headingLine: string;
+  /** Short label used for matching, e.g. "Flow:" or "# Conversation flow". */
+  label: string;
+  start: number;
+  end: number;
+}
+
+/** Lines that start a patchable section: markdown headings or "Label:" prefixes. */
+const SECTION_START_PATTERN = /^(?:# [^\n]+|[A-Z][A-Za-z0-9 /'-]+:)/gm;
+
+export function listPromptSections(prompt: string): PromptSection[] {
+  const matches = [...prompt.matchAll(SECTION_START_PATTERN)];
+  if (matches.length === 0) {
+    return [];
+  }
+
+  return matches.map((match, index) => {
+    const headingLine = match[0].trim();
+    const start = match.index ?? 0;
+    const next = matches[index + 1];
+    const end = next?.index ?? prompt.length;
+    const label = headingLine.startsWith('# ')
+      ? headingLine
+      : `${headingLine.split(':')[0]?.trim() ?? headingLine}:`;
+
+    return { headingLine, label, start, end };
+  });
+}
 
 export function buildPromptEvolutionUserPrompt(
   currentPrompt: string,
@@ -24,10 +56,17 @@ export function buildPromptEvolutionUserPrompt(
     )
     .join('\n');
 
+  const patchableSections = listPromptSections(currentPrompt)
+    .map((section) => `- ${section.label}`)
+    .join('\n');
+
   return dedent`
     Recurring failures from the latest call (Loop 1 mid-call corrections + post-call analysis):
 
     ${failureList}
+
+    Patchable sections (pick exactly one section_heading from this list):
+    ${patchableSections || '(none detected — use a "Label:" line from the prompt)'}
 
     Current base system prompt:
     ---
@@ -36,7 +75,7 @@ export function buildPromptEvolutionUserPrompt(
 
     Return JSON:
     {
-      "section_heading": "# Exact heading to patch",
+      "section_heading": "Exact label from patchable sections list",
       "operation": "add" | "rewrite",
       "new_section_content": "full new content for that section ONLY (include the heading line)",
       "rationale": "one sentence explaining the change",
@@ -51,55 +90,82 @@ export function applyPromptPatch(
   operation: 'add' | 'rewrite',
   newSectionContent: string,
 ): string {
-  const resolvedHeading = resolveSectionHeading(currentPrompt, sectionHeading.trim());
-  const headingPattern = new RegExp(
-    `(^|\\n)(${escapeRegExp(resolvedHeading)}\\s*\\n)([\\s\\S]*?)(?=\\n# |$)`,
-    'm',
-  );
-  const match = headingPattern.exec(currentPrompt);
+  const sections = listPromptSections(currentPrompt);
+  const section = findSection(sections, sectionHeading.trim());
 
-  if (!match) {
-    throw new Error(`Section not found in prompt: ${resolvedHeading}`);
+  if (!section) {
+    const available = sections.map((entry) => entry.label).join(', ') || 'none';
+    throw new Error(`Section not found in prompt: ${sectionHeading} (available: ${available})`);
   }
 
-  const sectionBody = match[3] ?? '';
-  const sectionStart = match.index + (match[1]?.length ?? 0);
+  const existingContent = currentPrompt.slice(section.start, section.end);
 
   let replacement: string;
   if (operation === 'rewrite') {
     replacement = newSectionContent.trimEnd();
   } else {
-    const addition = newSectionContent.replace(resolvedHeading, '').replace(sectionHeading, '').trim();
-    replacement = `${resolvedHeading}\n${sectionBody.trimEnd()}\n${addition}`.trimEnd();
+    const addition = stripSectionHeading(newSectionContent, section.label).trim();
+    replacement = addition ? `${existingContent.trimEnd()}\n${addition}`.trimEnd() : existingContent.trimEnd();
   }
 
-  const before = currentPrompt.slice(0, sectionStart);
-  const afterStart = sectionStart + (match[0].length - (match[1]?.length ?? 0));
-  const after = currentPrompt.slice(afterStart);
+  const before = currentPrompt.slice(0, section.start);
+  const after = currentPrompt.slice(section.end);
 
   return `${before}${replacement}${after}`.trimEnd() + '\n';
 }
 
-function resolveSectionHeading(currentPrompt: string, requestedHeading: string): string {
-  const headings = [...currentPrompt.matchAll(/^# .+$/gm)].map((match) => match[0].trim());
-  const exact = headings.find((heading) => heading === requestedHeading);
+function findSection(sections: PromptSection[], requestedHeading: string): PromptSection | undefined {
+  const requestKey = normalizeSectionKey(requestedHeading);
+
+  const exact = sections.find(
+    (section) =>
+      section.label === requestedHeading ||
+      section.headingLine === requestedHeading ||
+      normalizeSectionKey(section.label) === requestKey,
+  );
   if (exact) {
     return exact;
   }
 
-  const normalizedRequest = requestedHeading.toLowerCase();
-  const prefixMatch = headings.find(
-    (heading) =>
-      heading.toLowerCase().startsWith(normalizedRequest) ||
-      normalizedRequest.startsWith(heading.toLowerCase()),
-  );
-  if (prefixMatch) {
-    return prefixMatch;
-  }
+  const fuzzy = sections.find((section) => {
+    const labelKey = normalizeSectionKey(section.label);
+    return (
+      requestKey.includes(labelKey) ||
+      labelKey.includes(requestKey) ||
+      sectionWordsOverlap(requestKey, labelKey)
+    );
+  });
 
-  return requestedHeading;
+  return fuzzy;
 }
 
-function escapeRegExp(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+function normalizeSectionKey(heading: string): string {
+  return heading
+    .replace(/^#\s*/, '')
+    .replace(/:\s*.*$/, '')
+    .replace(/:\s*$/, '')
+    .trim()
+    .toLowerCase();
+}
+
+function sectionWordsOverlap(requestKey: string, labelKey: string): boolean {
+  const words = requestKey.split(/\s+/).filter((word) => word.length > 2);
+  return words.some((word) => labelKey.includes(word));
+}
+
+function stripSectionHeading(content: string, label: string): string {
+  const trimmed = content.trim();
+  const labelKey = normalizeSectionKey(label);
+  const lines = trimmed.split('\n');
+  const firstLine = lines[0]?.trim() ?? '';
+
+  if (
+    firstLine === label ||
+    firstLine.startsWith(`${label} `) ||
+    normalizeSectionKey(firstLine) === labelKey
+  ) {
+    return lines.slice(1).join('\n');
+  }
+
+  return trimmed.replace(label, '').trim();
 }

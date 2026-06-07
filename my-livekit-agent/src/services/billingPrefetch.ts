@@ -1,6 +1,7 @@
 import { llm } from '@livekit/agents';
 
 import { runBillingLookup } from '../tools/billing.js';
+import { summarizeBillingLookup } from './summarizeBillingLookup.js';
 import { createLogger } from '../utils/logger.js';
 import { normalizeLastFour } from '../utils/normalizeLastFour.js';
 
@@ -126,23 +127,11 @@ export async function refreshBillingPrefetch(
 
   try {
     const lookupJson = await runBillingLookup(resolved.lastFour, resolved.billMonth);
-
-    const intro =
-      resolved.source === 'user'
-        ? `Billing lookup already completed for account digits ${resolved.lastFour}.`
-        : `Billing lookup for account digits ${resolved.lastFour} is still current for this call.`;
+    const summary = summarizeBillingLookup(lookupJson);
 
     injectBillingPrefetch(
       chatCtx,
-      [
-        intro,
-        `Tool result: ${lookupJson}`,
-        'Billing data is loaded — answer the customer now in this same turn.',
-        'Use duplicateChargeFlag, recentCharges, plan, and totalDue from the result.',
-        'Do not call lookupBillingAccount again for this account.',
-        'Do not say please hold, let me check, or one moment.',
-        'Do not ask for digits again unless found is false.',
-      ].join(' '),
+      `Billing loaded: ${summary} Answer now in this turn — no hold, no re-lookup.`,
     );
 
     logger.info(

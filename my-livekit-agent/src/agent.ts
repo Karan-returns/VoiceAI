@@ -8,6 +8,7 @@ import {
 } from '@livekit/agents';
 import * as silero from '@livekit/agents-plugin-silero';
 import { BackgroundVoiceCancellation } from '@livekit/noise-cancellation-node';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { NovaTelAgent } from './agents/NovaTelAgent.js';
@@ -17,6 +18,7 @@ import { connectMongo, ensureIndexes } from './db/client.js';
 import { NOVATEL_GREETING_INSTRUCTION, NOVATEL_SUPPORT_PROMPT_V1 } from './prompts/novaTelSupport.v1.js';
 import { createProviders, type Providers } from './providers/index.js';
 import { scheduleCallAnalysis } from './services/callAnalysisService.js';
+import { storeSessionRecording } from './services/callRecorder.js';
 import { warmupLlm, warmupTts } from './services/connectionWarmup.js';
 import {
   attachConversationRecorder,
@@ -98,8 +100,8 @@ export default defineAgent({
           },
           endpointing: {
             mode: 'fixed',
-            minDelay: 400,
-            maxDelay: 2500,
+            minDelay: 280,
+            maxDelay: 1800,
           },
           preemptiveGeneration: {
             // Re-enabled: the framework guards correctness for billing turns. It runs
@@ -131,6 +133,11 @@ export default defineAgent({
       const callIdentity = resolveCallIdentity(ctx);
       attachMidCallCorrection(session, agent, { callId: callIdentity.callId });
 
+      // The built-in AgentSession recorder writes a mixed stereo OGG to the job's
+      // session directory. We transcode it to MP3 and store it in GridFS on shutdown.
+      // Requires MongoDB (for GridFS) to be configured.
+      const recordingEnabled = config.recording.enabled && Boolean(config.mongodbUri);
+
       if (config.mongodbUri) {
         recorder = attachConversationRecorder(session, config, callIdentity, agentPrompt.version);
         await recorder.start();
@@ -139,8 +146,22 @@ export default defineAgent({
       ctx.addShutdownCallback(async () => {
         logUsageSummary(session.usage);
 
+        // Close the session first so the recorder flushes the OGG to disk before
+        // we transcode it. close() is idempotent, so this is safe even if the
+        // framework already closed the session.
+        if (recordingEnabled) {
+          await session.close().catch(() => {});
+        }
+
         if (recorder) {
           await recorder.finalize('completed', 'job_shutdown', session.usage);
+        }
+
+        // Transcode the mixed OGG recording to MP3 and store it in GridFS.
+        // Best-effort: storeSessionRecording never throws, so it can't block shutdown.
+        if (recordingEnabled) {
+          const oggPath = join(ctx.sessionDirectory, 'audio.ogg');
+          await storeSessionRecording(callIdentity.callId, oggPath);
         }
       });
 
@@ -149,14 +170,30 @@ export default defineAgent({
       await connectPromise;
       const roomConnectedMs = Date.now() - entryStartedAt;
 
+      // `record: true` wires up the in-process RecorderIO (local audio.ogg) AND tells
+      // LiveKit Cloud to upload session telemetry on shutdown. When the Cloud project
+      // has data recording disabled, that upload fails with 401. Neutralize Cloud-only
+      // steps while keeping the local recorder.
+      if (recordingEnabled) {
+        ctx.initRecording = async () => {};
+      }
+
       const sessionStartAt = Date.now();
       await session.start({
         agent,
         room: ctx.room,
+        // Enable the built-in in-process recorder (mixed customer + agent audio).
+        record: recordingEnabled,
         inputOptions: {
           noiseCancellation: BackgroundVoiceCancellation(),
         },
       });
+
+      // RecorderIO is already started; clearing the flag skips Cloud session-report
+      // upload at job end without affecting the local OGG → MP3 → GridFS pipeline.
+      if (recordingEnabled) {
+        session._enableRecording = false;
+      }
       const sessionStartMs = Date.now() - sessionStartAt;
 
       logger.info(

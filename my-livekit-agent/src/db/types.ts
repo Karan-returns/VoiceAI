@@ -18,6 +18,18 @@ export interface MidCallCorrectionRecord {
   turnIndex: number;
 }
 
+export type RecordingStatus = 'pending' | 'stored' | 'failed';
+
+export interface ConversationRecording {
+  status: RecordingStatus;
+  format: 'mp3';
+  filename?: string;
+  gridFsId?: string;
+  sizeBytes?: number;
+  durationMs?: number;
+  error?: string;
+}
+
 export interface ConversationDocument {
   callId: string;
   roomName: string;
@@ -26,6 +38,7 @@ export interface ConversationDocument {
   endedAt?: Date;
   status: ConversationStatus;
   closeReason?: string;
+  recording?: ConversationRecording;
   promptVersion: string;
   providers: {
     stt: string;
@@ -63,3 +76,5 @@ export interface ConversationTurn {
 }
 
 export const CONVERSATIONS_COLLECTION = 'conversations';
+
+export const RECORDINGS_BUCKET = 'recordings';

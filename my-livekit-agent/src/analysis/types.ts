@@ -55,5 +55,11 @@ export interface HeuristicSignals {
   dead_air_flags: string[];
   escalation_flags: string[];
   greeting_within_5s: boolean;
+  /** Seconds between call start and the agent's first turn (includes transport/warmup latency). */
+  greeting_latency_seconds: number;
+  /** True when the agent's first turn actually contains a greeting and self/brand introduction. */
+  greeting_quality_ok: boolean;
+  /** True when the agent produced the very first turn of the call. */
+  agent_spoke_first: boolean;
   unresolved_objections_hint: number;
 }

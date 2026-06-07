@@ -6,6 +6,7 @@ import type { AnalysisStatus } from '../analysis/types.js';
 import {
   CONVERSATIONS_COLLECTION,
   type ConversationDocument,
+  type ConversationRecording,
   type ConversationTurn,
   type MidCallCorrectionRecord,
 } from './types.js';
@@ -83,6 +84,21 @@ export async function markConversationFailed(callId: string, closeReason: string
     status: 'failed',
     closeReason,
   });
+}
+
+export async function setConversationRecording(
+  callId: string,
+  recording: ConversationRecording,
+): Promise<void> {
+  await conversations().updateOne(
+    { callId },
+    {
+      $set: {
+        recording,
+        updatedAt: new Date(),
+      },
+    },
+  );
 }
 
 export async function getConversationByCallId(callId: string): Promise<ConversationDocument | null> {
@@ -208,7 +224,7 @@ export async function getAnalysisTrends(): Promise<
     rubricScore: doc.analysis!.rubric_score,
     sentimentTrend: doc.analysis!.sentiment_trend,
     flagCount: doc.analysis!.flags.length,
-    rubricPassed: doc.analysis!.rubric.filter((r) => r.passed).length,
+    rubricPassed: doc.analysis!.rubric.filter((r: { passed: boolean }) => r.passed).length,
     rubricTotal: doc.analysis!.rubric.length,
   }));
 }
