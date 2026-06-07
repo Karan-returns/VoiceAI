@@ -1,4 +1,6 @@
-# NovaTel Voice Agent — Step 1 (Backend)
+# NovaTel Voice Agent
+
+Monorepo for the NovaTel billing support voice agent and QA dashboard.
 
 LiveKit voice agent worker for **NovaTel** billing support (IntellifyAI assessment).  
 Pipeline: **LiveKit WebRTC → Deepgram STT → LiveKit Inference LLM → Deepgram TTS**.
