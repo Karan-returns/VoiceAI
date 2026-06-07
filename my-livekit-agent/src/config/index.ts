@@ -23,7 +23,7 @@ function envNumber(key: string, fallback: number): number {
 }
 
 function asSttProvider(value: string): SttProvider {
-  if (value === 'deepgram' || value === 'assemblyai' || value === 'whisper') {
+  if (value === 'livekit' || value === 'deepgram' || value === 'assemblyai' || value === 'whisper') {
     return value;
   }
   throw new Error(`Invalid STT_PROVIDER: ${value}`);
@@ -51,19 +51,19 @@ function asTtsProvider(value: string): TtsProvider {
 export const config: AppConfig = {
   ...(process.env.MONGODB_URI ? { mongodbUri: process.env.MONGODB_URI } : {}),
   stt: {
-    provider: asSttProvider(env('STT_PROVIDER', 'deepgram')),
-    model: env('STT_MODEL', 'nova-2-general'),
+    provider: asSttProvider(env('STT_PROVIDER', 'livekit')),
+    model: env('STT_MODEL', 'cartesia/ink-whisper'),
     language: env('STT_LANGUAGE', 'en'),
   },
   llm: {
     provider: asLlmProvider(env('LLM_PROVIDER', 'livekit')),
-    model: env('LLM_MODEL', 'openai/gpt-4o-mini'),
+    model: env('LLM_MODEL', 'openai/gpt-4.1-nano'),
     temperature: envNumber('LLM_TEMPERATURE', 0.7),
   },
   tts: {
-    provider: asTtsProvider(env('TTS_PROVIDER', 'deepgram')),
-    model: env('TTS_MODEL', 'aura-asteria-en'),
-    voice: env('TTS_VOICE', 'aura-asteria-en'),
+    provider: asTtsProvider(env('TTS_PROVIDER', 'livekit')),
+    model: env('TTS_MODEL', 'cartesia/sonic-turbo'),
+    voice: env('TTS_VOICE', 'f786b574-daa5-4673-aa0c-cbe3e8534c02'),
   },
   logLevel: env('LOG_LEVEL', 'info'),
 };

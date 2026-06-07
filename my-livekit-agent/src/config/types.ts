@@ -1,6 +1,6 @@
 // Provider names allowed in .env (like Python Literal[...] or C++ enum class).
 
-export type SttProvider = 'deepgram' | 'assemblyai' | 'whisper';
+export type SttProvider = 'livekit' | 'deepgram' | 'assemblyai' | 'whisper';
 export type LlmProvider = 'openai' | 'groq' | 'ollama' | 'livekit';
 export type TtsProvider = 'deepgram' | 'cartesia' | 'elevenlabs' | 'livekit';
 
