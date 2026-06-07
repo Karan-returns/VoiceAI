@@ -8,6 +8,7 @@ import { runLlmNode } from '../pipeline/llmNode.js';
 import { runTranscriptionNode } from '../pipeline/sttNode.js';
 import { runTtsNode } from '../pipeline/ttsNode.js';
 import { refreshBillingPrefetch } from '../services/billingPrefetch.js';
+import { playLatencyFiller } from '../services/latencyFiller.js';
 import { normalizeLastFour } from '../utils/normalizeLastFour.js';
 import type { MidCallCorrectionMonitor } from '../services/midCallCorrection/monitor.js';
 import { billingTools } from '../tools/billing.js';
@@ -42,6 +43,9 @@ export class NovaTelAgent extends voiceNs.Agent {
   ): Promise<void> {
     pruneOrphanToolItems(chatCtx);
     this.correctionMonitor?.applyToTurn(chatCtx, newMessage);
+
+    // Fire immediately (don't await) so TTS starts while prefetch + LLM run below.
+    playLatencyFiller(this.session);
 
     const userText = newMessage.textContent?.trim();
     if (userText) {
