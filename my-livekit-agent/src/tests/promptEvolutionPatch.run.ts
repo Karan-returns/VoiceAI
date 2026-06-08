@@ -38,4 +38,28 @@ assert(
 );
 assert(!rewritten.includes('escalate after one failed attempt'), 'rewrite should replace old policy text');
 
+// Regression: a patch must NOT glue the following heading onto the patched section's last line.
+// Otherwise the next heading drops below the line-start anchor and silently disappears, which
+// previously cascaded the prompt into losing whole sections on every evolution.
+const sectionsBefore = listPromptSections(NOVATEL_SUPPORT_PROMPT_V1).map((s) => s.label);
+for (const operation of ['add', 'rewrite'] as const) {
+  const repatched = applyPromptPatch(
+    NOVATEL_SUPPORT_PROMPT_V1,
+    'Voice rules:',
+    operation,
+    'Voice rules: speak clearly and keep it short.',
+  );
+  const sectionsAfter = listPromptSections(repatched).map((s) => s.label);
+  for (const label of sectionsBefore) {
+    assert(
+      sectionsAfter.includes(label),
+      `${operation} patch dropped section "${label}" (heading merged into previous line)`,
+    );
+  }
+  assert(
+    !/\S(?:Account data|Flow|Policies|Tools|If frustrated):/.test(repatched),
+    `${operation} patch glued a heading onto the previous line`,
+  );
+}
+
 console.log('promptEvolution patch: all checks passed');

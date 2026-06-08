@@ -20,6 +20,7 @@ import { createProviders, type Providers } from './providers/index.js';
 import { scheduleCallAnalysis } from './services/callAnalysisService.js';
 import { storeSessionRecording } from './services/callRecorder.js';
 import { warmupLlm, warmupTts } from './services/connectionWarmup.js';
+import { waitForCallerAudio } from './services/waitForCallerAudio.js';
 import {
   attachConversationRecorder,
   type ConversationRecorder,
@@ -130,7 +131,10 @@ export default defineAgent({
         useTtsAlignedTranscript: false,
         connOptions: {
           llmConnOptions: { maxRetry: 2, retryIntervalMs: 500, timeoutMs: 15000 },
-          sttConnOptions: { maxRetry: 2, retryIntervalMs: 300, timeoutMs: 10000 },
+          // STT websockets are closed server-side when no audio is received for a while
+          // (LiveKit error 2007). Extra retries recover transient idle timeouts during
+          // long pauses without killing the whole session on the first failure.
+          sttConnOptions: { maxRetry: 5, retryIntervalMs: 500, timeoutMs: 15000 },
           ttsConnOptions: { maxRetry: 2, retryIntervalMs: 300, timeoutMs: 10000 },
         },
       });
@@ -177,6 +181,13 @@ export default defineAgent({
       await connectPromise;
       const roomConnectedMs = Date.now() - entryStartedAt;
 
+      // Do not open the STT websocket until caller mic audio is flowing. Starting
+      // AgentSession earlier leaves STT idle and LiveKit Inference closes it with
+      // code 2007 ("session closed due to agent inactivity"), which tears down the call.
+      const callerReadyStartedAt = Date.now();
+      await waitForCallerAudio(ctx.room);
+      const callerReadyMs = Date.now() - callerReadyStartedAt;
+
       // `record: true` wires up the in-process RecorderIO (local audio.ogg) AND tells
       // LiveKit Cloud to upload session telemetry on shutdown. When the Cloud project
       // has data recording disabled, that upload fails with 401. Neutralize Cloud-only
@@ -214,6 +225,7 @@ export default defineAgent({
           mongo: Boolean(config.mongodbUri),
           promptVersion: agentPrompt.version,
           roomConnectedMs,
+          callerReadyMs,
           sessionStartMs,
         },
         'NovaTel agent session started',

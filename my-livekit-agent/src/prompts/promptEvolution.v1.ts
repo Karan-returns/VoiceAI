@@ -110,8 +110,14 @@ export function applyPromptPatch(
 
   const before = currentPrompt.slice(0, section.start);
   const after = currentPrompt.slice(section.end);
+  // `section.end` is the first character of the next heading, so the blank line that separated
+  // this section from the next one lives at the tail of `replacement` and was stripped by the
+  // trimEnd above. Re-insert a blank-line separator; otherwise the following heading is glued
+  // onto this section's last line, drops out of `listPromptSections` (which only matches headings
+  // at line start), and the prompt progressively loses sections on each patch.
+  const separator = after.trim().length > 0 ? '\n\n' : '';
 
-  return `${before}${replacement}${after}`.trimEnd() + '\n';
+  return `${before}${replacement}${separator}${after}`.trimEnd() + '\n';
 }
 
 function findSection(sections: PromptSection[], requestedHeading: string): PromptSection | undefined {
