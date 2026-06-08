@@ -34,7 +34,11 @@ const logger = createLogger('agent');
 
 export default defineAgent({
   prewarm: async (proc: JobProcess) => {
-    proc.userData.vad = await silero.VAD.load();
+    // Slightly lower threshold so barge-in is detected faster over agent TTS.
+    proc.userData.vad = await silero.VAD.load({
+      activationThreshold: 0.45,
+      minSpeechDuration: 40,
+    });
 
     // Build providers once on the idle worker and warm the LLM + TTS connections
     // BEFORE a call arrives, so the first turn skips the cold-connection penalty
@@ -92,11 +96,14 @@ export default defineAgent({
           turnDetection: 'vad',
           interruption: {
             enabled: true,
-            mode: 'vad',
+            // Adaptive distinguishes real barge-ins from backchannels; turnDetection stays VAD.
+            mode: 'adaptive',
+            // Pause briefly on backchannels (e.g. "mhmm"); real barge-ins commit on final STT.
             resumeFalseInterruption: true,
-            falseInterruptionTimeout: 2000,
-            minDuration: 600,
-            minWords: 2,
+            falseInterruptionTimeout: 1200,
+            minDuration: 400,
+            // VAD must trigger without waiting for a 2-word STT transcript.
+            minWords: 0,
           },
           endpointing: {
             mode: 'fixed',
