@@ -121,7 +121,7 @@ export default defineAgent({
           },
         },
         useTtsAlignedTranscript: false,
-        connOptions: {
+        connOptions: { // I know this should be handled gracefully, but this is for first version
           llmConnOptions: { maxRetry: 2, retryIntervalMs: 500, timeoutMs: 15000 },
           sttConnOptions: { maxRetry: 2, retryIntervalMs: 300, timeoutMs: 10000 },
           ttsConnOptions: { maxRetry: 2, retryIntervalMs: 300, timeoutMs: 10000 },
