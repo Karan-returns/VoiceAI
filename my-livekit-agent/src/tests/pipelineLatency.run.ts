@@ -152,9 +152,15 @@ async function main(): Promise<void> {
   const session = new voice.AgentSession({
     llm: providers.llm,
     tts: providers.tts,
+    turnHandling: {
+      interruption: {
+        enabled: false,
+        resumeFalseInterruption: false,
+      },
+    },
     connOptions: {
-      llmConnOptions: { maxRetry: 2, retryIntervalMs: 500, timeoutMs: 15000 },
-      ttsConnOptions: { maxRetry: 2, retryIntervalMs: 300, timeoutMs: 10000 },
+      llmConnOptions: { maxRetry: 2, retryIntervalMs: 500, timeoutMs: 30_000 },
+      ttsConnOptions: { maxRetry: 2, retryIntervalMs: 300, timeoutMs: 10_000 },
     },
   });
 
@@ -162,6 +168,10 @@ async function main(): Promise<void> {
 
   const watch = new TurnLatencyWatch(session, testAudio);
   const rows: TurnMetrics[] = [];
+
+  session.on(voice.AgentSessionEventTypes.Error, (ev) => {
+    console.error(`Session error (${ev.label}):`, ev.error);
+  });
 
   try {
     await session.start({ agent });

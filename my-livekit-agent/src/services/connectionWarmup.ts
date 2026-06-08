@@ -14,7 +14,7 @@ const logger = createLogger('warmup');
  * or fail a call. Reuse the SAME llm instance for the session so the kept-alive
  * connection primed here is the one used at call time.
  */
-export async function warmupLlm(model: llm.LLM, timeoutMs = 5000): Promise<void> {
+export async function warmupLlm(model: llm.LLM, timeoutMs = 30_000): Promise<void> {
   const startedAt = Date.now();
   try {
     const chatCtx = llmNs.ChatContext.empty();
@@ -25,9 +25,12 @@ export async function warmupLlm(model: llm.LLM, timeoutMs = 5000): Promise<void>
       connOptions: { maxRetry: 0, retryIntervalMs: 0, timeoutMs },
     });
 
-    // First chunk is enough to confirm the connection (and model) are warm.
-    await stream.next();
-    stream.close();
+    // Drain the full ping completion. Stopping after the first chunk and calling
+    // close() leaves the stream's background task running; when it later times out
+    // it emits an llm_error and throws an unhandled rejection that can crash tests.
+    for await (const _chunk of stream) {
+      // consume until the gateway closes the stream
+    }
 
     logger.info({ warmupMs: Date.now() - startedAt }, 'LLM connection warmed');
   } catch (err) {
