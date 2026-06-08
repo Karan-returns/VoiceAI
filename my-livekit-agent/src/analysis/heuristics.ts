@@ -132,3 +132,13 @@ export function formatHeuristicHints(signals: HeuristicSignals): string {
     `Repeated customer topics (objection hint): ${signals.unresolved_objections_hint}`,
   ].join('\n');
 }
+
+
+// Dead Air
+// Greeting Latency
+// Greeting Quality
+// Filler Words
+// Escalation Detection
+// Agent Spoke First
+// Response Length
+// Repeated Objections
