@@ -66,7 +66,7 @@ export const config: AppConfig = {
   llm: {
     provider: asLlmProvider(env('LLM_PROVIDER', 'livekit')),
     model: env('LLM_MODEL', 'openai/gpt-4.1-nano'),
-    temperature: envNumber('LLM_TEMPERATURE', 0.3),
+    temperature: envNumber('LLM_TEMPERATURE', 0.55),
   },
   tts: {
     provider: asTtsProvider(env('TTS_PROVIDER', 'livekit')),

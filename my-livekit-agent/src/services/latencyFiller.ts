@@ -4,16 +4,16 @@ import { createLogger } from '../utils/logger.js';
 
 const logger = createLogger('latencyFiller');
 
-/** Short spoken acknowledgments — avoids prompt-banned phrases like "let me check". */
+/** Short spoken acknowledgments — warm and natural; avoids prompt-banned phrases like "let me check". */
 const LATENCY_FILLER_PHRASES = [
-  'Sure, I can help with that.',
-  'Got it, thanks for explaining that.',
-  'Okay, I understand.',
-  'Right, I hear you on that.',
-  'Alright, thanks for sharing that.',
-  'I see, that makes sense.',
-  'Hmm, okay.',
-  'Well, sure.',
+  'Yeah, absolutely.',
+  'Oh okay, got it.',
+  'Right, I hear you.',
+  'Sure thing.',
+  "Yeah, I'm with you on that.",
+  'Ah, okay — thanks for explaining.',
+  'Gotcha, thanks.',
+  "Yeah, that's fair.",
 ] as const;
 
 export function pickRandomLatencyFiller(): string {
