@@ -58,8 +58,12 @@ export default defineAgent({
     if (config.mongodbUri) {
       await connectMongo(config.mongodbUri);
       await ensureIndexes();
-      await seedBillingAccounts();
-      await ensurePromptSeeded();
+      if (config.seedBilling) {
+        await seedBillingAccounts();
+      }
+      if (config.seedPrompt) {
+        await ensurePromptSeeded();
+      }
     } else {
       logger.warn('MONGODB_URI not set — conversations and billing lookups will not work');
     }
@@ -256,7 +260,7 @@ cli.runApp(
     agent: fileURLToPath(import.meta.url),
     // Dev defaults to 0 idle workers (cold start on every call). Keep one prewarmed
     // so VAD + Mongo are ready before the first test call connects.
-    numIdleProcesses: 1,
+    numIdleProcesses: config.numIdleProcesses,
     // Headroom over the 10s default so VAD load + Mongo connect during prewarm never
     // trips the init timeout (which orphans the process and breaks the next job).
     initializeProcessTimeout: 30_000,

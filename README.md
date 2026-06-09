@@ -179,6 +179,22 @@ npm run dev         # UI at http://localhost:5173
 
 See `dashboard/README.md` for full details.
 
+## Production deployment
+
+See deployment guides:
+
+- **Agent worker (LiveKit Cloud):** [`my-livekit-agent/DEPLOY.md`](my-livekit-agent/DEPLOY.md)
+- **QA dashboard (Render / Docker):** [`dashboard/DEPLOY.md`](dashboard/DEPLOY.md)
+
+Quick summary:
+
+1. Set up MongoDB Atlas ([`my-livekit-agent/ATLAS_SETUP.md`](my-livekit-agent/ATLAS_SETUP.md)) and add `MONGODB_URI` to LiveKit Cloud secrets
+2. Build and deploy the agent: `lk agent create` → `lk agent deploy`
+3. Run `npm run seed:billing` once (do not auto-seed in production)
+4. Set `PROMPT_EVOLUTION_ENABLED=false` until QA reviews prompt patches manually
+5. Deploy the dashboard with `DASHBOARD_API_KEY` for internal access
+6. CI runs on push via [`.github/workflows/ci.yml`](.github/workflows/ci.yml)
+
 ## Later steps (not built yet)
 
 - Diarized transcript enrichment

@@ -1,9 +1,11 @@
 import { Link, Route, Routes } from 'react-router-dom';
+import AuthGate from './components/AuthGate';
 import CallDetailPage from './pages/CallDetailPage';
 import DashboardPage from './pages/DashboardPage';
 
 export default function App() {
   return (
+    <AuthGate>
     <div className="min-h-screen flex flex-col">
       <header className="border-b border-border-subtle bg-surface-raised/80 backdrop-blur-sm sticky top-0 z-50">
         <div className="max-w-[1600px] mx-auto px-6 h-14 flex items-center justify-between">
@@ -31,5 +33,6 @@ export default function App() {
         </Routes>
       </main>
     </div>
+    </AuthGate>
   );
 }

@@ -7,6 +7,7 @@
     "build": "tsc",
     "clean": "rm -rf dist",
     "typecheck": "tsc --noEmit",
+    "test": "tsx src/tests/promptEvolutionFailureExtraction.run.ts",
     "test:llmNode": "tsx src/tests/llmNode.run.ts",
     "test:pipelineLatency": "tsx src/tests/pipelineLatency.run.ts",
     "test:promptEvolution": "tsx src/tests/promptEvolutionFailureExtraction.run.ts",
@@ -14,6 +15,8 @@
     "analyze:call": "tsx src/scripts/analyzeCall.ts",
     "evolve:prompt": "tsx src/scripts/evolvePrompt.ts",
     "export:recording": "tsx src/scripts/exportRecording.ts",
+    "purge:recordings": "tsx src/scripts/purgeOrphanedRecordings.ts",
+    "atlas:verify": "tsx src/scripts/verifyAtlas.ts",
     "dev": "tsx src/agent.ts dev",
     "start": "node dist/agent.js start",
     "download-files": "npx livekit-agents download-files"

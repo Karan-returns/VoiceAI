@@ -39,4 +39,9 @@ export interface AppConfig {
   tts: TtsConfig;
   recording: RecordingConfig;
   logLevel: string;
+  /** Run billing account seed on worker prewarm (use npm run seed:billing in prod). */
+  seedBilling: boolean;
+  /** Seed the default agent prompt when no active prompt exists. */
+  seedPrompt: boolean;
+  numIdleProcesses: number;
 }

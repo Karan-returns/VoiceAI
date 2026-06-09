@@ -1,7 +1,16 @@
+import { getApiKey } from './auth';
 import type { CallDetail, CallSummary, TrendPoint } from './types';
 
+function authHeaders(): HeadersInit {
+  const key = getApiKey();
+  if (!key) {
+    return {};
+  }
+  return { Authorization: `Bearer ${key}` };
+}
+
 async function fetchJson<T>(url: string): Promise<T> {
-  const res = await fetch(url);
+  const res = await fetch(url, { headers: authHeaders() });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     throw new Error((body as { error?: string }).error ?? `Request failed: ${res.status}`);
@@ -23,5 +32,10 @@ export function fetchTrends(): Promise<{ trends: TrendPoint[] }> {
 }
 
 export function recordingUrl(callId: string): string {
-  return `/api/calls/${encodeURIComponent(callId)}/recording`;
+  const base = `/api/calls/${encodeURIComponent(callId)}/recording`;
+  const key = getApiKey();
+  if (!key) {
+    return base;
+  }
+  return `${base}?apiKey=${encodeURIComponent(key)}`;
 }

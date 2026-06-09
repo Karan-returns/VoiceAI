@@ -60,4 +60,14 @@ export async function ensureIndexes(): Promise<void> {
   await database.collection(AGENT_PROMPTS_COLLECTION).createIndex({ isActive: 1 });
   await database.collection(AGENT_PROMPTS_COLLECTION).createIndex({ triggeredByCallId: 1 });
   await database.collection(AGENT_PROMPTS_COLLECTION).createIndex({ createdAt: -1 });
+
+  const retentionDays = Number(process.env.DATA_RETENTION_DAYS ?? 0);
+  if (retentionDays > 0) {
+    const expireAfterSeconds = retentionDays * 24 * 60 * 60;
+    await database.collection('conversations').createIndex(
+      { endedAt: 1 },
+      { expireAfterSeconds, partialFilterExpression: { endedAt: { $type: 'date' } } },
+    );
+    logger.info({ retentionDays }, 'TTL index enabled on conversations.endedAt');
+  }
 }

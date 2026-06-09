@@ -1,6 +1,7 @@
 import 'dotenv/config';
 
 import type { AppConfig, LlmProvider, SttProvider, TtsProvider } from './types.js';
+import { validateConfig } from './validate.js';
 
 function env(key: string, fallback?: string): string {
   const value = process.env[key] ?? fallback;
@@ -56,6 +57,8 @@ function asTtsProvider(value: string): TtsProvider {
   throw new Error(`Invalid TTS_PROVIDER: ${value}`);
 }
 
+const isProduction = process.env.NODE_ENV === 'production' || process.env.PRODUCTION === 'true';
+
 export const config: AppConfig = {
   ...(process.env.MONGODB_URI ? { mongodbUri: process.env.MONGODB_URI } : {}),
   stt: {
@@ -77,6 +80,11 @@ export const config: AppConfig = {
     enabled: envBool('RECORDING_ENABLED', false),
   },
   logLevel: env('LOG_LEVEL', 'info'),
+  seedBilling: envBool('SEED_BILLING', false),
+  seedPrompt: envBool('SEED_PROMPT', !isProduction),
+  numIdleProcesses: envNumber('NUM_IDLE_PROCESSES', 1),
 };
+
+validateConfig(config);
 
 export type { AppConfig } from './types.js';

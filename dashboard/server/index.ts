@@ -1,19 +1,27 @@
 import 'dotenv/config';
 import cors from 'cors';
 import express from 'express';
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { GridFSBucket, MongoClient, ObjectId, type Db } from 'mongodb';
 
-const PORT = Number(process.env.DASHBOARD_PORT ?? 3456);
+import { dashboardAuthEnabled, requireDashboardAuth } from './auth.js';
+
+const PORT = Number(process.env.PORT ?? process.env.DASHBOARD_PORT ?? 3456);
 const MONGODB_URI = process.env.MONGODB_URI ?? 'mongodb://127.0.0.1:27017/novatel';
 const RECORDINGS_BUCKET = 'recordings';
+const CORS_ORIGIN = process.env.DASHBOARD_CORS_ORIGIN;
+const STATIC_DIR = join(fileURLToPath(new URL('.', import.meta.url)), '..', 'dist');
 
 let db: Db;
+let mongoClient: MongoClient;
 
 async function connect(): Promise<Db> {
-  const client = new MongoClient(MONGODB_URI);
-  await client.connect();
+  mongoClient = new MongoClient(MONGODB_URI);
+  await mongoClient.connect();
   const dbName = new URL(MONGODB_URI).pathname.replace(/^\//, '') || 'novatel';
-  return client.db(dbName);
+  return mongoClient.db(dbName);
 }
 
 function serializeRecording(doc: Record<string, unknown> | undefined) {
@@ -90,12 +98,25 @@ function recordingsBucket(): GridFSBucket {
 async function main() {
   db = await connect();
   const app = express();
-  app.use(cors());
+
+  if (CORS_ORIGIN) {
+    app.use(cors({ origin: CORS_ORIGIN }));
+  } else {
+    app.use(cors());
+  }
+
   app.use(express.json());
 
-  app.get('/api/health', (_req, res) => {
-    res.json({ ok: true });
+  app.get('/api/health', async (_req, res) => {
+    try {
+      await db.command({ ping: 1 });
+      res.json({ ok: true, auth: dashboardAuthEnabled() });
+    } catch (err) {
+      res.status(503).json({ ok: false, error: String(err) });
+    }
   });
+
+  app.use('/api', requireDashboardAuth);
 
   app.get('/api/calls', async (req, res) => {
     try {
@@ -197,8 +218,19 @@ async function main() {
     }
   });
 
-  app.listen(PORT, () => {
-    console.log(`QA Dashboard API listening on http://localhost:${PORT}`);
+  if (existsSync(STATIC_DIR)) {
+    app.use(express.static(STATIC_DIR));
+    app.get('*', (_req, res) => {
+      res.sendFile(join(STATIC_DIR, 'index.html'));
+    });
+  }
+
+  app.listen(PORT, '0.0.0.0', () => {
+    const mode = existsSync(STATIC_DIR) ? 'production' : 'api-only';
+    console.log(`QA Dashboard (${mode}) listening on http://localhost:${PORT}`);
+    if (dashboardAuthEnabled()) {
+      console.log('API key authentication enabled');
+    }
   });
 }
 

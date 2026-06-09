@@ -1,0 +1,20 @@
+# Render Blueprint — deploy QA dashboard from monorepo root.
+# https://dashboard.render.com/select-repo?type=blueprint
+# Repo: https://github.com/Karan-returns/VoiceAI
+
+services:
+  - type: web
+    name: novatel-qa-dashboard
+    runtime: docker
+    rootDir: dashboard
+    dockerfilePath: ./Dockerfile
+    plan: free
+    region: singapore
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: MONGODB_URI
+        sync: false
+      - key: DASHBOARD_API_KEY
+        generateValue: true
